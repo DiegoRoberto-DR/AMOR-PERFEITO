@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { EventRsvp, Guest, RsvpStatus } from '../../types';
 import { 
   X, Plus, Users, Search, MessageCircle, Trash2, CheckCircle2, 
-  XCircle, Clock, FileDown, Upload, Utensils, Heart, Share2, Sparkles
+  XCircle, Clock, FileDown, Upload, Utensils, Heart, Share2, Sparkles, FileText
 } from 'lucide-react';
 import { openGuestRsvpWhatsApp } from '../../utils/whatsapp';
+import { generateGuestListPDF } from '../../utils/pdfGenerator';
+import { Storage } from '../../utils/storage';
 
 interface GuestListModalProps {
   isOpen: boolean;
@@ -221,6 +223,18 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const settings = Storage.getSettings();
+                generateGuestListPDF(event, settings);
+              }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-2xs"
+              title="Baixar lista em PDF para controle na portaria e recepção do evento"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Lista PDF (Portaria)</span>
+            </button>
+
             <button
               onClick={exportCSV}
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-stone-100 text-stone-700 border border-stone-200 rounded-xl text-xs font-medium transition cursor-pointer"
@@ -455,7 +469,13 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                                 {guest.category}
                               </span>
                             )}
-                            {guest.phone && <span>{guest.phone}</span>}
+                            {guest.phone ? (
+                              <span className="text-[#882C4E] font-semibold bg-rose-50 px-2 py-0.5 rounded border border-rose-200/50">
+                                📱 {guest.phone}
+                              </span>
+                            ) : (
+                              <span className="text-amber-600 text-[10px] italic">Sem telefone</span>
+                            )}
                             {guest.tableNumber && <span>{guest.tableNumber}</span>}
                           </div>
                         </td>

@@ -159,6 +159,11 @@ export default function App() {
     }
   };
 
+  const handleDeleteAllEvents = async () => {
+    await Storage.deleteAllEvents();
+    setEvents([]);
+  };
+
   const handleUpdateEventGuests = (eventId: string, updatedGuests: Guest[]) => {
     const updated = events.map(e => {
       if (e.id !== eventId) return e;
@@ -312,6 +317,7 @@ export default function App() {
               setIsEventFormOpen(true);
             }}
             onDeleteEvent={handleDeleteEvent}
+            onDeleteAllEvents={handleDeleteAllEvents}
             onManageGuests={(event) => {
               setSelectedEventForGuests(event);
               setIsGuestListOpen(true);

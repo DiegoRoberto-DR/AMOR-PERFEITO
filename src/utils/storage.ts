@@ -403,6 +403,7 @@ export const Storage = {
         body: JSON.stringify({
           guestId,
           status: update.status,
+          phone: update.phone,
           confirmedCount: update.confirmedCount,
           companionNames: update.companionNames,
           dietaryRestrictions: update.dietaryRestrictions,
@@ -413,6 +414,23 @@ export const Storage = {
       console.warn('API sync deferred to localStorage:', err);
     }
 
+    return true;
+  },
+
+  async deleteAllEvents(): Promise<boolean> {
+    this.saveEvents([]);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('amor_perfeito_data_updated', {
+          detail: { eventId: 'all' },
+        })
+      );
+    }
+    try {
+      await fetch('/api/events', { method: 'DELETE' });
+    } catch (err) {
+      console.warn('API delete all failed, stored locally:', err);
+    }
     return true;
   }
 };

@@ -121,6 +121,13 @@ app.post('/api/events', (req, res) => {
   res.json(newEvent);
 });
 
+app.delete('/api/events', (req, res) => {
+  const db = loadDB();
+  db.events = [];
+  saveDB(db);
+  res.json({ success: true, message: 'Todos os eventos foram excluídos' });
+});
+
 app.delete('/api/events/:id', (req, res) => {
   const db = loadDB();
   db.events = db.events.filter((e: any) => e.id !== req.params.id);
@@ -132,7 +139,7 @@ app.delete('/api/events/:id', (req, res) => {
 app.post('/api/events/:slug/rsvp', (req, res) => {
   const db = loadDB();
   const slug = req.params.slug;
-  const { guestId, status, confirmedCount, companionNames, dietaryRestrictions, message } = req.body;
+  const { guestId, status, confirmedCount, companionNames, dietaryRestrictions, message, phone } = req.body;
 
   const eventIndex = db.events.findIndex((e: any) => e.slug === slug || e.id === slug);
   if (eventIndex === -1) {
@@ -147,6 +154,7 @@ app.post('/api/events/:slug/rsvp', (req, res) => {
   db.events[eventIndex].guests[guestIndex] = {
     ...db.events[eventIndex].guests[guestIndex],
     status,
+    phone: phone ? String(phone).trim() : db.events[eventIndex].guests[guestIndex].phone,
     confirmedCount: Number(confirmedCount) || (status === 'confirmed' ? 1 : 0),
     companionNames: companionNames || [],
     dietaryRestrictions: dietaryRestrictions || '',

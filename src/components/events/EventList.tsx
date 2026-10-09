@@ -1,9 +1,10 @@
 import React from 'react';
 import { EventRsvp } from '../../types';
-import { formatDate } from '../../utils/pdfGenerator';
+import { formatDate, generateGuestListPDF } from '../../utils/pdfGenerator';
+import { Storage } from '../../utils/storage';
 import { 
   Plus, Users, Share2, Calendar, MapPin, Clock, Edit2, 
-  Trash2, CheckCircle2, XCircle, AlertCircle, Sparkles, ExternalLink 
+  Trash2, CheckCircle2, XCircle, AlertCircle, Sparkles, ExternalLink, FileText 
 } from 'lucide-react';
 
 interface EventListProps {
@@ -11,6 +12,7 @@ interface EventListProps {
   onNewEvent: () => void;
   onEditEvent: (event: EventRsvp) => void;
   onDeleteEvent: (id: string) => void;
+  onDeleteAllEvents: () => void;
   onManageGuests: (event: EventRsvp) => void;
   onShareEvent: (event: EventRsvp) => void;
   onOpenPublicRsvp: (slug: string) => void;
@@ -21,10 +23,17 @@ export const EventList: React.FC<EventListProps> = ({
   onNewEvent,
   onEditEvent,
   onDeleteEvent,
+  onDeleteAllEvents,
   onManageGuests,
   onShareEvent,
   onOpenPublicRsvp,
 }) => {
+  const handleDeleteAll = () => {
+    if (confirm('ATENÇÃO: Deseja realmente EXCLUIR TODOS OS EVENTOS e suas listas de convidados? Esta ação não pode ser desfeita.')) {
+      onDeleteAllEvents();
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -38,13 +47,26 @@ export const EventList: React.FC<EventListProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={onNewEvent}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#882C4E] hover:bg-[#732240] text-white rounded-2xl text-sm font-semibold shadow-md hover:shadow-lg transition cursor-pointer self-start sm:self-auto shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Cadastrar Novo Evento</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          {events.length > 0 && (
+            <button
+              onClick={handleDeleteAll}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-2xl text-xs font-semibold transition cursor-pointer"
+              title="Excluir todos os eventos cadastrados"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Excluir Todos ({events.length})</span>
+            </button>
+          )}
+
+          <button
+            onClick={onNewEvent}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#882C4E] hover:bg-[#732240] text-white rounded-2xl text-sm font-semibold shadow-md hover:shadow-lg transition cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Cadastrar Novo Evento</span>
+          </button>
+        </div>
       </div>
 
       {/* Events Grid */}
@@ -185,15 +207,28 @@ export const EventList: React.FC<EventListProps> = ({
                       <Share2 className="w-3.5 h-3.5" />
                       <span>Gerar Link do Convite</span>
                     </button>
+
+                    <button
+                      onClick={() => {
+                        const settings = Storage.getSettings();
+                        generateGuestListPDF(event, settings);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-rose-50 text-[#882C4E] rounded-xl text-xs font-semibold transition cursor-pointer"
+                      title="Baixar lista em PDF para controle na portaria e recepção do evento"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>PDF Portaria</span>
+                    </button>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => onEditEvent(event)}
-                      className="p-2 text-stone-400 hover:text-stone-700 hover:bg-stone-200/50 rounded-lg transition cursor-pointer"
-                      title="Editar evento"
+                      className="inline-flex items-center gap-1 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+                      title="Editar todos os dados deste evento"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
+                      <span>Editar</span>
                     </button>
                     <button
                       onClick={() => onDeleteEvent(event.id)}

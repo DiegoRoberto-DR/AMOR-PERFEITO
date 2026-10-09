@@ -7,7 +7,7 @@ import {
   Heart, Calendar, Clock, MapPin, Search, CheckCircle2, 
   XCircle, Utensils, MessageSquare, Sparkles, AlertCircle, 
   ArrowLeft, ExternalLink, ShieldCheck, UserCheck, RefreshCw,
-  PartyPopper, ChevronDown
+  PartyPopper, ChevronDown, Phone
 } from 'lucide-react';
 
 interface PublicRsvpViewProps {
@@ -24,12 +24,15 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
   const [event, setEvent] = useState<EventRsvp | null>(null);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [showAllGuestsList, setShowAllGuestsList] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchFeedback, setSearchFeedback] = useState('');
+  const [matchedGuests, setMatchedGuests] = useState<Guest[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
   const [attendance, setAttendance] = useState<'yes' | 'no'>('yes');
+  const [guestPhone, setGuestPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [confirmedCount, setConfirmedCount] = useState<number>(1);
   const [companionNames, setCompanionNames] = useState<string[]>([]);
   const [dietaryRestrictions, setDietaryRestrictions] = useState('');
@@ -37,14 +40,50 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
+  const formatPhoneInput = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+  };
+
+  const handlePerformSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSearchFeedback('');
+    const query = searchQuery.trim();
+    if (query.length < 3) {
+      setSearchFeedback('Por favor, digite ao menos 3 letras do seu nome.');
+      setMatchedGuests([]);
+      setHasSearched(false);
+      return;
+    }
+
+    const normQuery = normalizeText(query);
+    const found = (event?.guests || []).filter(g => {
+      const normName = normalizeText(g.name);
+      return normName.includes(normQuery) || normQuery.includes(normName);
+    });
+
+    setHasSearched(true);
+    setMatchedGuests(found);
+
+    if (found.length === 1) {
+      populateFormWithGuest(found[0]);
+    } else if (found.length === 0) {
+      setSelectedGuest(null);
+    }
+  };
+
   // Countdown timer state
   const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number } | null>(null);
 
   // Helper to prefill form for a guest
   const populateFormWithGuest = (guest: Guest) => {
     setSelectedGuest(guest);
-    setIsSearching(false);
     setSearchQuery(guest.name);
+    setGuestPhone(guest.phone || '');
+    setPhoneError('');
 
     if (guest.status === 'confirmed') {
       setAttendance('yes');
@@ -197,6 +236,14 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     e.preventDefault();
     if (!event || !selectedGuest) return;
 
+    // MANDATORY PHONE VALIDATION
+    const cleanPhone = guestPhone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      setPhoneError('O telefone com DDD é OBRIGATÓRIO (mínimo 10 dígitos) para confirmar sua presença e diferenciar seu convite caso haja outro convidado com nome igual.');
+      return;
+    }
+    setPhoneError('');
+
     setIsSubmitting(true);
     const isYes = attendance === 'yes';
     const status: RsvpStatus = isYes ? 'confirmed' : 'declined';
@@ -205,6 +252,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
 
     const updatedGuestData: Partial<Guest> = {
       status,
+      phone: guestPhone.trim(),
       confirmedCount: count,
       companionNames: names.length > 0 ? names : [selectedGuest.name],
       dietaryRestrictions: isYes ? dietaryRestrictions.trim() : '',
@@ -403,102 +451,90 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
             </p>
           </div>
 
-          {/* Step 1: Search Name in the Registered Guest List */}
+          {/* Step 1: Search Name in the Registered Guest List (STRICT PRIVACY: NO OPEN LIST OF NAMES) */}
           <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1.5">
+            <form onSubmit={handlePerformSearch} className="space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-stone-700">
                 1. Digite seu nome completo para localizar seu convite:
               </label>
-              <div className="relative">
-                <Search className="w-4 h-4 text-stone-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setIsSearching(true);
-                    if (selectedGuest && normalizeText(e.target.value) !== normalizeText(selectedGuest.name)) {
-                      setSelectedGuest(null);
-                      setIsSubmitted(false);
-                      setSubmissionSuccess(false);
-                    }
-                  }}
-                  onFocus={() => setIsSearching(true)}
-                  placeholder="Ex: Carlos Eduardo ou Família Silva..."
-                  className="w-full pl-11 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#882C4E]/30 focus:border-[#882C4E]"
-                />
+              <p className="text-[11px] text-stone-500">
+                Por segurança e privacidade, seu convite só aparecerá após você digitar seu nome correto cadastrado na lista.
+              </p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-stone-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setHasSearched(false);
+                      setSearchFeedback('');
+                      if (selectedGuest && normalizeText(e.target.value) !== normalizeText(selectedGuest.name)) {
+                        setSelectedGuest(null);
+                        setIsSubmitted(false);
+                        setSubmissionSuccess(false);
+                      }
+                    }}
+                    placeholder="Ex: Carlos Alberto Ferreira..."
+                    className="w-full pl-11 pr-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#882C4E]/30 focus:border-[#882C4E]"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-5 py-3 bg-[#882C4E] hover:bg-[#732240] text-white rounded-2xl text-xs font-bold shadow-xs transition cursor-pointer shrink-0"
+                >
+                  Localizar Convite
+                </button>
               </div>
-            </div>
+            </form>
 
-            {/* Dropdown matching results */}
-            {isSearching && searchQuery.trim().length > 0 && (
-              <div className="bg-white rounded-2xl border border-stone-200 shadow-xl max-h-64 overflow-y-auto divide-y divide-stone-100">
-                {matchingGuests.length > 0 ? (
-                  matchingGuests.map(guest => (
-                    <button
-                      key={guest.id}
-                      type="button"
-                      onClick={() => handleSelectGuest(guest)}
-                      className="w-full text-left p-3.5 hover:bg-rose-50/70 transition flex items-center justify-between cursor-pointer"
-                    >
-                      <div>
-                        <div className="font-bold text-stone-900 text-sm">{guest.name}</div>
-                        <div className="text-[11px] text-stone-500">
-                          {guest.maxCompanions > 0
-                            ? `Convite para você e até ${guest.maxCompanions} acompanhante(s)`
-                            : 'Convite individual'}
-                          {guest.tableNumber && ` • ${guest.tableNumber}`}
-                        </div>
-                      </div>
-                      <span className="text-xs font-semibold text-[#882C4E] px-3 py-1 bg-rose-50 rounded-xl border border-rose-200/60 shrink-0">
-                        Selecionar
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <div className="p-4 text-center text-xs text-stone-500">
-                    Nenhum convite encontrado com o nome digitado. Tente pesquisar apenas seu primeiro nome ou sobrenome.
-                  </div>
-                )}
+            {searchFeedback && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>{searchFeedback}</span>
               </div>
             )}
 
-            {/* Toggle Full Guest List option */}
-            {!selectedGuest && (
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => setShowAllGuestsList(!showAllGuestsList)}
-                  className="inline-flex items-center gap-1.5 text-xs text-[#882C4E] font-semibold hover:underline cursor-pointer"
-                >
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAllGuestsList ? 'rotate-180' : ''}`} />
-                  <span>Ou selecione seu nome diretamente na lista oficial ({event.guests.length} convidados)</span>
-                </button>
+            {/* If searched and NOT found */}
+            {hasSearched && matchedGuests.length === 0 && (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 text-center space-y-1">
+                <p className="font-bold">Nome não localizado na lista oficial de convidados deste evento.</p>
+                <p className="text-[11px] text-rose-600">
+                  Verifique se você digitou seu nome completo conforme consta no convite ou entre em contato com os anfitriões / Cerimonial Amor Perfeito.
+                </p>
+              </div>
+            )}
 
-                {showAllGuestsList && (
-                  <div className="mt-3 p-3 bg-stone-50 rounded-2xl border border-stone-200 max-h-56 overflow-y-auto text-left space-y-1">
-                    {event.guests.map(guest => (
-                      <div
-                        key={guest.id}
-                        onClick={() => {
-                          handleSelectGuest(guest);
-                          setShowAllGuestsList(false);
-                        }}
-                        className="p-2.5 bg-white hover:bg-rose-50 rounded-xl border border-stone-200/60 flex items-center justify-between cursor-pointer transition"
-                      >
-                        <div>
-                          <span className="font-semibold text-stone-900 text-xs block">{guest.name}</span>
-                          <span className="text-[10px] text-stone-500">
-                            {guest.maxCompanions > 0 ? `Até ${guest.maxCompanions + 1} pessoas` : 'Individual'}
-                          </span>
+            {/* If searched and MULTIPLE matches (e.g. guests with identical or similar names) */}
+            {hasSearched && matchedGuests.length > 1 && !selectedGuest && (
+              <div className="space-y-2 p-4 bg-stone-50 border border-stone-200 rounded-2xl">
+                <p className="text-xs font-bold text-stone-800">
+                  Encontramos {matchedGuests.length} convites com este nome. Por favor, identifique qual é o seu convite:
+                </p>
+                <div className="space-y-2">
+                  {matchedGuests.map(guest => (
+                    <div
+                      key={guest.id}
+                      className="p-3 bg-white rounded-xl border border-stone-200/80 flex items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div>
+                        <div className="font-bold text-stone-900 text-xs">{guest.name}</div>
+                        <div className="text-[10px] text-stone-500 mt-0.5">
+                          {guest.maxCompanions > 0 ? `Convite para até ${guest.maxCompanions + 1} pessoas` : 'Convite individual'}
+                          {guest.tableNumber && ` • ${guest.tableNumber}`}
                         </div>
-                        <span className="text-[11px] font-semibold text-[#882C4E]">
-                          Confirmar
-                        </span>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <button
+                        type="button"
+                        onClick={() => populateFormWithGuest(guest)}
+                        className="px-3 py-1.5 bg-[#882C4E] hover:bg-[#732240] text-white rounded-lg text-xs font-bold cursor-pointer transition shrink-0"
+                      >
+                        Este é o Meu Convite
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -591,6 +627,41 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                         </div>
                       </label>
                     </div>
+                  </div>
+
+                  {/* Step 3: Mandatory Phone Number Field (Differentiator for guests with same name) */}
+                  <div className="p-4 bg-rose-50/70 rounded-2xl border border-rose-200">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Phone className="w-4 h-4 text-[#882C4E]" />
+                        <span>Seu Telefone / WhatsApp com DDD (Obrigatório) *</span>
+                      </span>
+                      <span className="text-[10px] bg-rose-100 text-[#882C4E] font-semibold px-2 py-0.5 rounded">
+                        Identificação única
+                      </span>
+                    </label>
+                    <p className="text-[11px] text-stone-600 mb-2 leading-relaxed">
+                      O preenchimento do seu telefone é <b>obrigatório</b> para diferenciar você caso haja outros convidados com nomes iguais ou parecidos na lista oficial dos anfitriões.
+                    </p>
+                    <input
+                      type="tel"
+                      required
+                      value={guestPhone}
+                      onChange={(e) => {
+                        setGuestPhone(formatPhoneInput(e.target.value));
+                        setPhoneError('');
+                      }}
+                      placeholder="Ex: (11) 98765-4321"
+                      className={`w-full px-3.5 py-2.5 bg-white border ${
+                        phoneError ? 'border-rose-500 ring-2 ring-rose-200' : 'border-stone-300'
+                      } rounded-xl text-sm font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#882C4E]/30`}
+                    />
+                    {phoneError && (
+                      <p className="text-xs text-rose-700 mt-1.5 font-semibold flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>{phoneError}</span>
+                      </p>
+                    )}
                   </div>
 
                   {/* If Attending: Specify counts and names */}
