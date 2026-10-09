@@ -207,6 +207,22 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
       return;
     }
 
+    // If user filled in a single guest name but forgot to click "+ Adicionar Convidado", include it automatically
+    let finalGuests = [...guests];
+    if (singleName.trim()) {
+      finalGuests.push({
+        id: `guest-${Date.now()}`,
+        name: singleName.trim(),
+        phone: singlePhone.trim(),
+        category: singleCategory,
+        maxCompanions: singleCanBring ? singleCompanions : 0,
+        canBringCompanions: singleCanBring,
+        status: 'pending',
+        confirmedCount: 0,
+        companionNames: [],
+      });
+    }
+
     const slug = initialEvent?.slug || `${generateSlug(title)}-${Math.floor(100 + Math.random() * 900)}`;
 
     const savedEvent: EventRsvp = {
@@ -224,7 +240,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
       welcomeMessage: welcomeMessage.trim(),
       dressCode: dressCode.trim(),
       bannerImage,
-      guests,
+      guests: finalGuests,
       createdAt: initialEvent?.createdAt || new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0],
     };

@@ -129,7 +129,19 @@
       "welcomeMessage": "É uma imensa honra e alegria celebrar este momento tão especial da nossa história com você. Por favor, confirme a presença da sua família até o prazo para organizarmos tudo com carinho.",
       "dressCode": "Traje Passeio Completo / Social",
       "bannerImage": "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1600&q=80",
-      "guests": [],
+      "guests": [
+        {
+          "id": "guest-diego-roberto-1",
+          "name": "Diego Roberto",
+          "phone": "(11) 98765-4321",
+          "category": "Padrinhos",
+          "maxCompanions": 2,
+          "canBringCompanions": true,
+          "status": "pending",
+          "confirmedCount": 0,
+          "companionNames": []
+        }
+      ],
       "createdAt": "2026-10-09",
       "updatedAt": "2026-10-09"
     }

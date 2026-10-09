@@ -179,15 +179,39 @@ export const Storage = {
     }
     try {
       const parsed = JSON.parse(raw);
-      // Filter out any leftover legacy demo event
-      return (parsed || []).filter((e: any) => e.slug !== 'casamento-amanda-guilherme' && e.id !== 'event-1');
+      // Filter out any leftover legacy demo events
+      const legacySlugs = [
+        'casamento-amanda-guilherme',
+        '15-anos-da-marina',
+        'aniversario-15-anos-sophia',
+        'event-1',
+        'event-2'
+      ];
+      return (parsed || []).filter((e: any) => 
+        !legacySlugs.includes(e.slug) && 
+        !legacySlugs.includes(e.id) &&
+        !e.slug?.includes('amanda-guilherme') &&
+        !e.slug?.includes('15-anos-da-marina')
+      );
     } catch {
       return [];
     }
   },
 
   saveEvents(events: EventRsvp[]): void {
-    const cleaned = (events || []).filter((e: any) => e.slug !== 'casamento-amanda-guilherme' && e.id !== 'event-1');
+    const legacySlugs = [
+      'casamento-amanda-guilherme',
+      '15-anos-da-marina',
+      'aniversario-15-anos-sophia',
+      'event-1',
+      'event-2'
+    ];
+    const cleaned = (events || []).filter((e: any) => 
+      !legacySlugs.includes(e.slug) && 
+      !legacySlugs.includes(e.id) &&
+      !e.slug?.includes('amanda-guilherme') &&
+      !e.slug?.includes('15-anos-da-marina')
+    );
     localStorage.setItem('amor_perfeito_events', JSON.stringify(cleaned));
   },
 

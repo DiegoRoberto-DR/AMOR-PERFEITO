@@ -41,7 +41,9 @@ export function encodeEventForUrl(event: EventRsvp): string {
     const json = JSON.stringify(compact);
     // Standard UTF-8 safe base64
     const b64 = btoa(unescape(encodeURIComponent(json)));
-    return b64;
+    // URL-safe replacement: '+' -> '-', '/' -> '_', '=' stripped
+    const urlSafe = b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return urlSafe;
   } catch (err) {
     console.error('Error encoding event for URL:', err);
     return '';
@@ -51,8 +53,16 @@ export function encodeEventForUrl(event: EventRsvp): string {
 /**
  * Decodes an EventRsvp object from a URL-safe Base64 string
  */
-export function decodeEventFromUrl(b64: string): EventRsvp | null {
+export function decodeEventFromUrl(raw: string): EventRsvp | null {
   try {
+    if (!raw) return null;
+    let b64 = decodeURIComponent(raw);
+    // Restore standard base64 from URL-safe format and replace spaces that URL decoders produce for '+'
+    b64 = b64.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4 !== 0) {
+      b64 += '=';
+    }
+
     const json = decodeURIComponent(escape(atob(b64)));
     const c = JSON.parse(json);
 

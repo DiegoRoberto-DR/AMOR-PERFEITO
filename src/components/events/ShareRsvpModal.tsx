@@ -27,8 +27,8 @@ export const ShareRsvpModal: React.FC<ShareRsvpModalProps> = ({
   const encodedData = encodeEventForUrl(event);
   
   // Portable URL: works 100% on any mobile phone, WhatsApp, Vercel, etc.
-  const portableUrl = `${origin}/?rsvp=${event.slug}&ed=${encodedData}`;
-  const shortUrl = `${origin}/?rsvp=${event.slug}`;
+  const portableUrl = `${origin}/?rsvp=${encodeURIComponent(event.slug)}&ed=${encodeURIComponent(encodedData)}`;
+  const shortUrl = `${origin}/?rsvp=${encodeURIComponent(event.slug)}`;
 
   const invitationMessage = `✨ *CONVITE & CONFIRMAÇÃO DE PRESENÇA* ✨
 
@@ -92,6 +92,18 @@ _Cerimonial Amor Perfeito_`;
 
         {/* Body */}
         <div className="p-6 space-y-6 overflow-y-auto flex-1">
+          {/* Warning if 0 guests registered */}
+          {(!event.guests || event.guests.length === 0) && (
+            <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                <span>⚠️ Atenção: Lista de Convidados Vazia (0 convidados)</span>
+              </div>
+              <p className="text-[11px] text-amber-800/90 leading-relaxed">
+                Você ainda não adicionou os convidados deste evento no painel. Como a confirmação é feita com busca do nome, nenhum convidado conseguirá localizar seu convite até que você cadastre os nomes no botão <b>"Lista de Convidados"</b>.
+              </p>
+            </div>
+          )}
+
           {/* Main Link Input (Portable) */}
           <div className="p-4 bg-rose-50/60 rounded-2xl border border-rose-200 space-y-2">
             <div className="flex items-center justify-between">
@@ -104,7 +116,7 @@ _Cerimonial Amor Perfeito_`;
               </span>
             </div>
             <p className="text-[11px] text-stone-600">
-              Este link carrega o evento <b>{event.title}</b> e a lista de convidados em qualquer smartphone (Android ou iPhone).
+              Este link carrega o evento <b>{event.title}</b> e a lista de convidados ({event.guests?.length || 0} cadastrados) em qualquer smartphone (Android ou iPhone).
             </p>
             <div className="flex items-center gap-2">
               <input

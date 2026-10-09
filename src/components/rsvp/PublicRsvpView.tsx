@@ -74,17 +74,24 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     if (e) e.preventDefault();
     setSearchFeedback('');
     const query = searchQuery.trim();
-    if (query.length < 3) {
-      setSearchFeedback('Por favor, digite ao menos 3 letras do seu nome.');
+    if (query.length < 2) {
+      setSearchFeedback('Por favor, digite ao menos 2 letras do seu nome.');
       setMatchedGuests([]);
       setHasSearched(false);
       return;
     }
 
     const normQuery = normalizeText(query);
+    const queryWords = normQuery.split(/\s+/).filter(Boolean);
+
     const found = (event?.guests || []).filter(g => {
       const normName = normalizeText(g.name);
-      return normName.includes(normQuery) || normQuery.includes(normName);
+      if (normName.includes(normQuery) || normQuery.includes(normName)) return true;
+      if (queryWords.length > 1 && queryWords.every(word => normName.includes(word))) return true;
+      const guestFirst = normName.split(/\s+/)[0];
+      const queryFirst = queryWords[0];
+      if (guestFirst && queryFirst && guestFirst === queryFirst && queryWords.length === 1 && (event?.guests || []).length <= 15) return true;
+      return false;
     });
 
     setHasSearched(true);
@@ -101,11 +108,6 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
   useEffect(() => {
     const loadEventData = async () => {
       setLoadError(null);
-
-      // Sync with server first to clear any cached deleted events from the phone
-      try {
-        await Storage.syncWithServer();
-      } catch {}
 
       // 1. Check query parameters
       const urlParams = new URLSearchParams(window.location.search);
@@ -129,7 +131,25 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
         }
       }
 
-      // 3. Look in local storage by slug
+      // 3. Sync with server to get fresh data from backend
+      try {
+        const serverData = await Storage.syncWithServer();
+        if (serverData && serverData.events && serverData.events.length > 0) {
+          if (!currentEvent && targetSlug && targetSlug !== 'evento') {
+            const matchedOnServer = serverData.events.find(e => 
+              e.slug === targetSlug || 
+              e.id === targetSlug || 
+              normalizeText(e.slug) === normalizeText(targetSlug) ||
+              normalizeText(e.title) === normalizeText(targetSlug)
+            );
+            if (matchedOnServer) {
+              currentEvent = matchedOnServer;
+            }
+          }
+        }
+      } catch {}
+
+      // 4. Look in local storage by slug
       if (!currentEvent && targetSlug && targetSlug !== 'evento') {
         currentEvent = Storage.getEvents().find(e => 
           e.slug === targetSlug || 
@@ -138,7 +158,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
         ) || null;
       }
 
-      // 4. Fallback to API if available
+      // 5. Fallback to API if available
       if (!currentEvent && targetSlug && targetSlug !== 'evento') {
         try {
           const res = await fetch(`/api/events/${encodeURIComponent(targetSlug)}`);
@@ -149,7 +169,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
         } catch {}
       }
 
-      // 5. If no event was found yet or targetSlug was generic ('evento'), pick the latest active event
+      // 6. If no event was found yet or targetSlug was generic ('evento') or old deleted slug, pick latest active event
       if (!currentEvent) {
         const all = Storage.getEvents();
         if (all.length > 0) {
@@ -521,6 +541,18 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
 
           {/* Step 1: Search Name in the Registered Guest List */}
           <div className="space-y-4">
+            {(!event.guests || event.guests.length === 0) && (
+              <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 space-y-1.5 text-center">
+                <div className="font-bold flex items-center justify-center gap-1.5 text-amber-800">
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                  <span>Aviso: Lista de convidados deste evento ainda não possui nomes cadastrados</span>
+                </div>
+                <p className="text-[11px] text-amber-800/90 leading-relaxed max-w-md mx-auto">
+                  O anfitrião ainda não cadastrou os convidados na lista oficial no painel. Para confirmar sua presença, solicite ao cerimonial ou anfitrião que cadastre seu nome no botão <b>"Lista de Convidados"</b> do evento.
+                </p>
+              </div>
+            )}
+
             <form onSubmit={handlePerformSearch} className="space-y-2">
               <label className="block text-xs font-bold uppercase tracking-wider text-stone-700">
                 1. Digite seu nome completo para localizar seu convite:

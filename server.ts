@@ -13,6 +13,17 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
+// Enable CORS for mobile devices and preview environments
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Persistent database file
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -106,7 +117,12 @@ app.get('/api/events', (req, res) => {
 app.get('/api/events/:slug', (req, res) => {
   const db = loadDB();
   const slug = req.params.slug;
-  const event = db.events.find((e: any) => e.slug === slug || e.id === slug);
+  const event = db.events.find((e: any) => 
+    e.slug === slug || 
+    e.id === slug ||
+    (e.slug && e.slug.toLowerCase() === slug.toLowerCase()) ||
+    (e.title && e.title.toLowerCase() === slug.toLowerCase())
+  );
   if (!event) {
     return res.status(404).json({ error: 'Evento não encontrado' });
   }
@@ -146,7 +162,11 @@ app.post('/api/events/:slug/rsvp', (req, res) => {
   const slug = req.params.slug;
   const { guestId, status, confirmedCount, companionNames, dietaryRestrictions, message, phone } = req.body;
 
-  const eventIndex = db.events.findIndex((e: any) => e.slug === slug || e.id === slug);
+  const eventIndex = db.events.findIndex((e: any) => 
+    e.slug === slug || 
+    e.id === slug ||
+    (e.slug && e.slug.toLowerCase() === slug.toLowerCase())
+  );
   if (eventIndex === -1) {
     return res.status(404).json({ error: 'Evento não encontrado' });
   }
@@ -192,7 +212,7 @@ async function startServer() {
     });
   }
 
-  app.listen(port, () => {
+  app.listen(Number(port), '0.0.0.0', () => {
     console.log(`Server listening on port ${port}`);
   });
 }
