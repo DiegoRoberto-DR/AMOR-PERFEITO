@@ -61,8 +61,14 @@ export default function App() {
         hashParams.get('rsvp') || 
         hashParams.get('evento');
 
-      if (rsvpParam) {
-        setCurrentRsvpSlug(rsvpParam);
+      const portableData = 
+        searchParams.get('ed') || 
+        searchParams.get('d') ||
+        hashParams.get('ed') || 
+        hashParams.get('d');
+
+      if (rsvpParam || portableData) {
+        setCurrentRsvpSlug(rsvpParam || 'evento');
       }
     };
 
@@ -206,7 +212,11 @@ export default function App() {
   };
 
   const handleOpenGuestPreview = () => {
-    const firstSlug = events[0]?.slug || 'casamento-amanda-guilherme';
+    if (events.length === 0) {
+      alert('Nenhum evento cadastrado no momento. Crie um evento primeiro.');
+      return;
+    }
+    const firstSlug = events[0].slug;
     setCurrentRsvpSlug(firstSlug);
   };
 

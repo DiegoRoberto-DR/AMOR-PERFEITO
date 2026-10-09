@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { EventRsvp } from '../../types';
 import { formatDate } from '../../utils/pdfGenerator';
-import { X, Copy, Check, ExternalLink, Share2, MessageCircle, QrCode, Sparkles } from 'lucide-react';
+import { encodeEventForUrl } from '../../utils/urlSync';
+import { X, Copy, Check, ExternalLink, Share2, MessageCircle, QrCode, Sparkles, Smartphone, Link } from 'lucide-react';
 
 interface ShareRsvpModalProps {
   isOpen: boolean;
@@ -20,9 +21,14 @@ export const ShareRsvpModal: React.FC<ShareRsvpModalProps> = ({
 
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
+  const [copiedShort, setCopiedShort] = useState(false);
 
   const origin = window.location.origin;
-  const rsvpUrl = `${origin}/?rsvp=${event.slug}`;
+  const encodedData = encodeEventForUrl(event);
+  
+  // Portable URL: works 100% on any mobile phone, WhatsApp, Vercel, etc.
+  const portableUrl = `${origin}/?rsvp=${event.slug}&ed=${encodedData}`;
+  const shortUrl = `${origin}/?rsvp=${event.slug}`;
 
   const invitationMessage = `✨ *CONVITE & CONFIRMAÇÃO DE PRESENÇA* ✨
 
@@ -32,17 +38,23 @@ ${event.subtitle ? `_${event.subtitle}_\n` : ''}
 📍 *Local:* ${event.locationName}
 ${event.locationAddress ? `Endereço: ${event.locationAddress}\n` : ''}
 💌 *Por favor, confirme sua presença no link oficial:*
-👉 ${rsvpUrl}
+👉 ${portableUrl}
 
 ⏳ *Prazo para confirmação:* até ${formatDate(event.deadlineDate)}
 
 ${event.welcomeMessage ? `"${event.welcomeMessage}"\n` : ''}
 _Cerimonial Amor Perfeito_`;
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(rsvpUrl);
+  const handleCopyPortableLink = () => {
+    navigator.clipboard.writeText(portableUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleCopyShortLink = () => {
+    navigator.clipboard.writeText(shortUrl);
+    setCopiedShort(true);
+    setTimeout(() => setCopiedShort(false), 2500);
   };
 
   const handleCopyText = () => {
@@ -56,8 +68,8 @@ _Cerimonial Amor Perfeito_`;
     window.open(`https://wa.me/?text=${encoded}`, '_blank');
   };
 
-  // QR code image via reliable public API or SVG
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(rsvpUrl)}&color=88-44-78`;
+  // QR code image via reliable public API
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(portableUrl)}&color=88-44-78`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-stone-900/60 backdrop-blur-xs overflow-y-auto">
@@ -67,7 +79,7 @@ _Cerimonial Amor Perfeito_`;
           <div>
             <h2 className="text-lg font-serif font-bold">Link de RSVP para o Convite</h2>
             <p className="text-xs text-rose-100 font-light">
-              Compartilhe com seus convidados para eles confirmarem presença
+              Compartilhe com seus convidados para eles confirmarem presença pelo celular
             </p>
           </div>
           <button
@@ -80,27 +92,52 @@ _Cerimonial Amor Perfeito_`;
 
         {/* Body */}
         <div className="p-6 space-y-6 overflow-y-auto flex-1">
-          {/* Main Link Input */}
-          <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-              Link Oficial do Evento (para colocar no convite impresso ou virtual)
-            </label>
+          {/* Main Link Input (Portable) */}
+          <div className="p-4 bg-rose-50/60 rounded-2xl border border-rose-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-[#882C4E] flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4" />
+                <span>Link Oficial do Convite (Sincronizado para Celular & WhatsApp)</span>
+              </label>
+              <span className="text-[10px] bg-rose-200/80 text-[#882C4E] font-bold px-2 py-0.5 rounded">
+                Recomendado
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-600">
+              Este link carrega o evento <b>{event.title}</b> e a lista de convidados em qualquer smartphone (Android ou iPhone).
+            </p>
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 readOnly
-                value={rsvpUrl}
-                className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs font-mono text-[#882C4E] select-all focus:outline-none"
+                value={portableUrl}
+                className="w-full px-3.5 py-2.5 bg-white border border-rose-200 rounded-xl text-xs font-mono text-[#882C4E] select-all focus:outline-none"
               />
               <button
                 type="button"
-                onClick={handleCopyLink}
+                onClick={handleCopyPortableLink}
                 className="px-4 py-2.5 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shrink-0 cursor-pointer shadow-xs"
               >
                 {copiedLink ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
                 <span>{copiedLink ? 'Copiado!' : 'Copiar'}</span>
               </button>
             </div>
+          </div>
+
+          {/* Short Link Alternative */}
+          <div className="flex items-center justify-between p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs">
+            <div className="flex items-center gap-2">
+              <Link className="w-3.5 h-3.5 text-stone-500" />
+              <span className="text-stone-600">Link Curto Simplificado:</span>
+              <span className="font-mono text-stone-800 text-[11px]">{shortUrl}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyShortLink}
+              className="text-xs font-bold text-[#882C4E] hover:underline cursor-pointer"
+            >
+              {copiedShort ? 'Copiado!' : 'Copiar Curto'}
+            </button>
           </div>
 
           {/* QR Code and Actions */}
@@ -119,7 +156,7 @@ _Cerimonial Amor Perfeito_`;
                 <span>QR Code para Convite Impresso</span>
               </h4>
               <p className="text-[11px] text-stone-500 leading-relaxed">
-                Adicione este QR Code na arte do seu convite de casamento ou aniversário. Ao apontar a câmera do celular, o convidado acessa diretamente a tela de RSVP.
+                Adicione este QR Code na arte do seu convite de casamento ou aniversário. Ao apontar a câmera do celular, o convidado acessa diretamente a confirmação do seu evento.
               </p>
               <div className="pt-1 flex flex-wrap justify-center sm:justify-start gap-2">
                 <button

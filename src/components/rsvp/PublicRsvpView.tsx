@@ -3,11 +3,12 @@ import confetti from 'canvas-confetti';
 import { EventRsvp, Guest, RsvpStatus } from '../../types';
 import { formatDate } from '../../utils/pdfGenerator';
 import { Storage, normalizeText } from '../../utils/storage';
+import { decodeEventFromUrl } from '../../utils/urlSync';
 import { 
   Heart, Calendar, Clock, MapPin, Search, CheckCircle2, 
   XCircle, Utensils, MessageSquare, Sparkles, AlertCircle, 
-  ArrowLeft, ExternalLink, ShieldCheck, UserCheck, RefreshCw,
-  PartyPopper, Phone, Lock, HelpCircle
+  ArrowLeft, ExternalLink, ShieldCheck, RefreshCw,
+  Phone, Lock, User, Users, MessageCircle
 } from 'lucide-react';
 
 interface PublicRsvpViewProps {
@@ -19,9 +20,9 @@ interface PublicRsvpViewProps {
 export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
   slug,
   onBackToAdmin,
-  isAdminLoggedIn,
 }) => {
   const [event, setEvent] = useState<EventRsvp | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
@@ -33,6 +34,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
   const [attendance, setAttendance] = useState<'yes' | 'no'>('yes');
   const [guestPhone, setGuestPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [companionError, setCompanionError] = useState('');
   const [confirmedCount, setConfirmedCount] = useState<number>(1);
   const [companionNames, setCompanionNames] = useState<string[]>([]);
   const [dietaryRestrictions, setDietaryRestrictions] = useState('');
@@ -55,12 +57,13 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     setSearchQuery(guest.name);
     setGuestPhone(guest.phone || '');
     setPhoneError('');
+    setCompanionError('');
 
     // If guest is still pending, initialize form defaults
     if (guest.status === 'pending') {
       setAttendance('yes');
-      const defaultPax = guest.maxCompanions > 0 ? (guest.maxCompanions + 1) : 1;
-      setConfirmedCount(defaultPax);
+      // If allowed companions > 0, default to 1 or max
+      setConfirmedCount(1);
       setCompanionNames([guest.name]);
       setDietaryRestrictions('');
       setMessage('');
@@ -94,37 +97,64 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     }
   };
 
-  // Load event and check for pre-selected guest in query parameters
+  // Load event and check for portable URL parameter & query parameters
   useEffect(() => {
     const loadEventData = async () => {
+      setLoadError(null);
+
+      // Sync with server first to clear any cached deleted events from the phone
+      try {
+        await Storage.syncWithServer();
+      } catch {}
+
       // 1. Check query parameters
       const urlParams = new URLSearchParams(window.location.search);
-      const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
+      const hashQuery = window.location.hash.includes('?')
+        ? window.location.hash.substring(window.location.hash.indexOf('?') + 1)
+        : '';
+      const hashParams = new URLSearchParams(hashQuery);
       
       const targetSlug = slug || urlParams.get('rsvp') || urlParams.get('evento') || hashParams.get('rsvp') || hashParams.get('evento');
       const targetGuestId = urlParams.get('convidado') || urlParams.get('guest') || urlParams.get('g') || hashParams.get('convidado');
+      const portableData = urlParams.get('ed') || urlParams.get('d') || hashParams.get('ed') || hashParams.get('d');
 
-      // 2. Fetch locally first
-      let currentEvent = Storage.getEvents().find(e => 
-        e.slug === targetSlug || 
-        e.id === targetSlug ||
-        normalizeText(e.slug) === normalizeText(targetSlug || '')
-      );
+      let currentEvent: EventRsvp | null = null;
 
-      // 3. Fallback to API if not in local storage
-      if (!currentEvent && targetSlug) {
+      // 2. If portable event payload is in the URL, decode it immediately!
+      if (portableData) {
+        const decoded = decodeEventFromUrl(portableData);
+        if (decoded) {
+          Storage.saveEventFromUrl(decoded);
+          currentEvent = decoded;
+        }
+      }
+
+      // 3. Look in local storage by slug
+      if (!currentEvent && targetSlug && targetSlug !== 'evento') {
+        currentEvent = Storage.getEvents().find(e => 
+          e.slug === targetSlug || 
+          e.id === targetSlug ||
+          normalizeText(e.slug) === normalizeText(targetSlug)
+        ) || null;
+      }
+
+      // 4. Fallback to API if available
+      if (!currentEvent && targetSlug && targetSlug !== 'evento') {
         try {
           const res = await fetch(`/api/events/${encodeURIComponent(targetSlug)}`);
           if (res.ok) {
             currentEvent = await res.json();
+            if (currentEvent) Storage.saveEventFromUrl(currentEvent);
           }
         } catch {}
       }
 
-      // 4. Default to first event if none specified
+      // 5. If no event was found yet or targetSlug was generic ('evento'), pick the latest active event
       if (!currentEvent) {
         const all = Storage.getEvents();
-        if (all.length > 0) currentEvent = all[0];
+        if (all.length > 0) {
+          currentEvent = all[0];
+        }
       }
 
       if (currentEvent) {
@@ -137,6 +167,12 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
             selectGuestForRsvp(matchedGuest);
           }
         }
+      } else {
+        setLoadError(
+          targetSlug && targetSlug !== 'evento'
+            ? `O evento "${targetSlug}" não foi localizado ou foi excluído pelo cerimonial.`
+            : 'Nenhum evento localizado no momento. Por favor, crie um evento no painel ou acesse o link enviado no convite.'
+        );
       }
     };
 
@@ -189,10 +225,12 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
 
   const handleAttendanceChange = (val: 'yes' | 'no') => {
     setAttendance(val);
+    setCompanionError('');
   };
 
   const handleCountChange = (count: number) => {
     setConfirmedCount(count);
+    setCompanionError('');
     const current = [...companionNames];
     if (count > current.length) {
       while (current.length < count) {
@@ -208,6 +246,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     const updated = [...companionNames];
     updated[idx] = val;
     setCompanionNames(updated);
+    setCompanionError('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -228,17 +267,47 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     }
     setPhoneError('');
 
-    setIsSubmitting(true);
     const isYes = attendance === 'yes';
     const status: RsvpStatus = isYes ? 'confirmed' : 'declined';
-    const count = isYes ? confirmedCount : 0;
-    const names = isYes ? companionNames.filter(n => n.trim().length > 0) : [];
+    
+    // COMPANION VALIDATION
+    const allowedCompanions = Number(selectedGuest.maxCompanions) || 0;
+    let finalCount = 1;
+    let finalNames: string[] = [selectedGuest.name];
+
+    if (isYes) {
+      if (allowedCompanions === 0) {
+        // Individual invitation: only 1 person, no companions allowed
+        finalCount = 1;
+        finalNames = [selectedGuest.name];
+      } else {
+        // Can bring companions: check count and companion names
+        finalCount = confirmedCount;
+        finalNames = [selectedGuest.name];
+
+        if (confirmedCount > 1) {
+          for (let i = 1; i < confirmedCount; i++) {
+            const name = (companionNames[i] || '').trim();
+            if (!name) {
+              setCompanionError(`Por favor, preencha o nome completo do ${i}º acompanhante que irá com você.`);
+              return;
+            }
+            finalNames.push(name);
+          }
+        }
+      }
+    } else {
+      finalCount = 0;
+      finalNames = [];
+    }
+
+    setIsSubmitting(true);
 
     const updatedGuestData: Partial<Guest> = {
       status,
       phone: guestPhone.trim(),
-      confirmedCount: count,
-      companionNames: names.length > 0 ? names : [selectedGuest.name],
+      confirmedCount: finalCount,
+      companionNames: finalNames,
       dietaryRestrictions: isYes ? dietaryRestrictions.trim() : '',
       message: message.trim(),
       confirmedAt: new Date().toLocaleString('pt-BR'),
@@ -272,21 +341,41 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     setIsSubmitting(false);
   };
 
-  if (!event) {
+  const handleNotifyCerimonialWhatsApp = () => {
+    if (!event || !selectedGuest) return;
+    const settings = Storage.getSettings();
+    const isYes = selectedGuest.status === 'confirmed';
+    const pax = selectedGuest.confirmedCount || 1;
+    const names = selectedGuest.companionNames?.join(', ') || selectedGuest.name;
+    
+    const text = isYes
+      ? `Olá! Confirmei minha presença no evento *${event.title}* através do link oficial de RSVP!\n\n👤 *Titular:* ${selectedGuest.name}\n📱 *Telefone:* ${selectedGuest.phone || ''}\n🥂 *Presença:* Confirmada (${pax} pessoa${pax > 1 ? 's' : ''})\n👥 *Nomes:* ${names}${selectedGuest.dietaryRestrictions ? `\n🥗 *Restrições:* ${selectedGuest.dietaryRestrictions}` : ''}${selectedGuest.message ? `\n💌 *Mensagem:* "${selectedGuest.message}"` : ''}`
+      : `Olá! Registrei minha resposta no evento *${event.title}* informando que infelizmente não poderei comparecer.\n\n👤 *Nome:* ${selectedGuest.name}\n💌 *Mensagem:* "${selectedGuest.message || 'Desejo muitas felicidades!'}"`;
+
+    const phoneClean = (settings.whatsapp || settings.phone || '').replace(/\D/g, '');
+    const url = `https://wa.me/${phoneClean}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  if (loadError || !event) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-4">
-        <div className="max-w-md bg-white p-8 rounded-3xl shadow-md text-center border border-rose-100">
-          <AlertCircle className="w-12 h-12 text-[#882C4E] mx-auto mb-3" />
-          <h2 className="text-xl font-serif font-bold text-stone-800">Carregando Evento...</h2>
-          <p className="text-xs text-stone-500 mt-2">
-            Localizando o evento do Cerimonial Amor Perfeito. Por favor, aguarde...
+        <div className="max-w-md bg-white p-8 rounded-3xl shadow-xl text-center border border-rose-100 space-y-4">
+          <div className="w-14 h-14 bg-rose-50 text-[#882C4E] rounded-2xl flex items-center justify-center mx-auto">
+            <Heart className="w-7 h-7 fill-[#882C4E]" />
+          </div>
+          <h2 className="text-xl font-serif font-bold text-stone-800">
+            Cerimonial Amor Perfeito
+          </h2>
+          <p className="text-xs text-stone-600 leading-relaxed">
+            {loadError || 'Carregando evento... Por favor, verifique o link do convite recebido.'}
           </p>
           {onBackToAdmin && (
             <button
               onClick={onBackToAdmin}
-              className="mt-6 px-5 py-2.5 bg-[#882C4E] text-white rounded-xl text-xs font-semibold cursor-pointer"
+              className="mt-4 px-5 py-2.5 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl text-xs font-semibold cursor-pointer shadow-xs"
             >
-              Voltar ao Painel
+              Acessar Painel Administrativo
             </button>
           )}
         </div>
@@ -294,7 +383,8 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     );
   }
 
-  const maxAllowedPeople = (selectedGuest?.maxCompanions || 0) + 1;
+  const allowedCompanions = Number(selectedGuest?.maxCompanions) || 0;
+  const isIndividualOnly = allowedCompanions === 0;
   const isGuestLocked = selectedGuest && (selectedGuest.status === 'confirmed' || selectedGuest.status === 'declined');
 
   return (
@@ -429,7 +519,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
             </p>
           </div>
 
-          {/* Step 1: Search Name in the Registered Guest List (PRIVACY PROTECTED) */}
+          {/* Step 1: Search Name in the Registered Guest List */}
           <div className="space-y-4">
             <form onSubmit={handlePerformSearch} className="space-y-2">
               <label className="block text-xs font-bold uppercase tracking-wider text-stone-700">
@@ -511,7 +601,9 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                             )}
                           </div>
                           <div className="text-[10px] text-stone-500 mt-0.5">
-                            {guest.maxCompanions > 0 ? `Convite para até ${guest.maxCompanions + 1} pessoas` : 'Convite individual'}
+                            {guest.maxCompanions > 0 
+                              ? `Convite com até ${guest.maxCompanions} acompanhante(s)` 
+                              : 'Convite Individual (Sem acompanhante)'}
                             {guest.phone && ` • Telefone: ***${guest.phone.slice(-4)}`}
                           </div>
                         </div>
@@ -531,11 +623,9 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
 
             {/* ============================================================ */}
             {/* CASE A: GUEST ALREADY CONFIRMED OR DECLINED -> LOCKED VIEW   */}
-            {/* CANNOT CONFIRM AGAIN, CANNOT ALTER, ONLY ADMIN CAN CHANGE    */}
             {/* ============================================================ */}
             {selectedGuest && isGuestLocked && (
-              <div className="pt-6 border-t border-stone-100 space-y-6">
-                {/* Locked Header Banner */}
+              <div className="pt-6 border-t border-stone-100 space-y-6 animate-in fade-in">
                 <div className="p-6 rounded-3xl bg-gradient-to-br from-stone-50 via-rose-50/40 to-stone-100 border-2 border-rose-200/90 text-stone-800 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-rose-200/60">
                     <div className="flex items-center gap-3">
@@ -562,7 +652,9 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                       {selectedGuest.status === 'confirmed' ? (
                         <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-300">
                           <CheckCircle2 className="w-4 h-4" />
-                          <span>Presença Confirmada ({selectedGuest.confirmedCount || 1} pessoa{selectedGuest.confirmedCount === 1 ? '' : 's'})</span>
+                          <span>
+                            Presença Confirmada ({selectedGuest.confirmedCount || 1} pessoa{selectedGuest.confirmedCount === 1 ? '' : 's'})
+                          </span>
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-stone-200 text-stone-800 rounded-xl text-xs font-bold border border-stone-300">
@@ -585,10 +677,16 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                       <span className="font-bold text-stone-800">{selectedGuest.confirmedAt || 'Registrado no sistema'}</span>
                     </div>
 
-                    {selectedGuest.status === 'confirmed' && selectedGuest.companionNames && selectedGuest.companionNames.length > 0 && (
+                    {selectedGuest.status === 'confirmed' && (
                       <div className="sm:col-span-2">
-                        <span className="font-semibold text-stone-500 block text-[10px] uppercase">Nomes na Lista de Entrada</span>
-                        <span className="font-bold text-[#882C4E]">{selectedGuest.companionNames.join(', ')}</span>
+                        <span className="font-semibold text-stone-500 block text-[10px] uppercase">
+                          {selectedGuest.maxCompanions > 0 ? 'Nomes Confirmados na Portaria' : 'Tipo de Convite'}
+                        </span>
+                        <span className="font-bold text-[#882C4E]">
+                          {selectedGuest.companionNames && selectedGuest.companionNames.length > 0
+                            ? selectedGuest.companionNames.join(', ')
+                            : `${selectedGuest.name} (Convite Individual)`}
+                        </span>
                       </div>
                     )}
 
@@ -607,7 +705,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                     )}
                   </div>
 
-                  {/* MANDATORY REQUIREMENT: Clear notice that response cannot be altered by guest */}
+                  {/* MANDATORY NOTICE: Locked, only Admin can alter */}
                   <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1.5">
                     <div className="flex items-center gap-2 font-bold text-amber-800">
                       <Lock className="w-4 h-4 text-amber-700 shrink-0" />
@@ -621,8 +719,17 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                     </p>
                   </div>
 
-                  {/* Search another name button */}
-                  <div className="flex justify-end pt-2">
+                  {/* Action Buttons: WhatsApp notification & Change Name */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleNotifyCerimonialWhatsApp}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Avisar Cerimonial no WhatsApp</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => {
@@ -643,7 +750,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
             {/* CASE B: GUEST IS PENDING -> RENDER FORM TO CONFIRM PRESENCE   */}
             {/* ============================================================ */}
             {selectedGuest && !isGuestLocked && (
-              <div className="pt-6 border-t border-stone-100 space-y-6">
+              <div className="pt-6 border-t border-stone-100 space-y-6 animate-in fade-in">
                 {/* Guest Identity Banner */}
                 <div className="p-4 rounded-2xl bg-rose-50/80 border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
@@ -651,10 +758,19 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                       Convite Selecionado
                     </span>
                     <h3 className="text-base font-bold text-stone-900">{selectedGuest.name}</h3>
-                    <p className="text-xs text-stone-600">
-                      Válido para até <b>{maxAllowedPeople} pessoa(s)</b>
-                      {selectedGuest.tableNumber && ` • ${selectedGuest.tableNumber}`}
-                    </p>
+                    
+                    {/* Explicit Companion Rule Notice */}
+                    {isIndividualOnly ? (
+                      <div className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-stone-100 text-stone-700 rounded-md text-[11px] font-semibold mt-1 border border-stone-200">
+                        <User className="w-3 h-3 text-stone-500" />
+                        <span>Convite Individual (Válido exclusivamente para você)</span>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-purple-100 text-purple-800 rounded-md text-[11px] font-semibold mt-1 border border-purple-200">
+                        <Users className="w-3 h-3 text-purple-600" />
+                        <span>Você pode levar até {allowedCompanions} acompanhante{allowedCompanions === 1 ? '' : 's'} (Total {allowedCompanions + 1} pessoas)</span>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -758,51 +874,103 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                     )}
                   </div>
 
-                  {/* If Attending: Specify counts and names */}
+                  {/* Step 4: Companion Logic according to Admin authorization */}
                   {attendance === 'yes' && (
-                    <div className="space-y-5 p-5 bg-stone-50/80 rounded-2xl border border-stone-200">
-                      <div>
-                        <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                          Quantas pessoas da sua família / convite irão comparecer?
-                        </label>
-                        <div className="flex items-center gap-2">
-                          {Array.from({ length: maxAllowedPeople }, (_, i) => i + 1).map(num => (
-                            <button
-                              key={num}
-                              type="button"
-                              onClick={() => handleCountChange(num)}
-                              className={`w-11 h-11 rounded-xl text-sm font-bold transition cursor-pointer ${
-                                confirmedCount === num
-                                  ? 'bg-[#882C4E] text-white shadow-md'
-                                  : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-100'
-                              }`}
-                            >
-                              {num}
-                            </button>
-                          ))}
-                          <span className="text-xs text-stone-500 ml-2">
-                            {confirmedCount === 1 ? '1 pessoa' : `${confirmedCount} pessoas`}
-                          </span>
+                    <div className="space-y-4">
+                      {isIndividualOnly ? (
+                        /* CASE 1: Individual only -> Guest cannot bring anyone and cannot enter companion names */
+                        <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-1">
+                          <div className="flex items-center gap-2 font-bold text-xs text-stone-800">
+                            <User className="w-4 h-4 text-[#882C4E]" />
+                            <span>Confirmação Exclusiva para: {selectedGuest.name}</span>
+                          </div>
+                          <p className="text-[11px] text-stone-600 leading-relaxed">
+                            O anfitrião cadastrou este convite como <b>individual</b>. Não é permitido levar acompanhante nem adicionar outros nomes. A confirmação é válida exclusivamente para você (1 pessoa).
+                          </p>
                         </div>
-                      </div>
+                      ) : (
+                        /* CASE 2: Can bring companions -> Guest must choose quantity and name each companion */
+                        <div className="p-5 bg-stone-50/90 rounded-2xl border border-stone-200 space-y-4">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-xs font-bold text-stone-800">
+                                Quantas pessoas irão comparecer ao todo (incluindo você)? *
+                              </label>
+                              <span className="text-[10px] font-semibold text-[#882C4E] bg-rose-100 px-2 py-0.5 rounded">
+                                Limite de até {allowedCompanions + 1} pessoas
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-stone-500 mb-2.5">
+                              O anfitrião autorizou você a levar até {allowedCompanions} acompanhante{allowedCompanions === 1 ? '' : 's'}. Selecione abaixo:
+                            </p>
 
-                      {/* Companion Names */}
-                      <div className="space-y-2">
-                        <label className="block text-xs font-semibold text-stone-700">
-                          Nome de quem estará presente (para a lista de entrada do cerimonial):
-                        </label>
-                        {Array.from({ length: confirmedCount }).map((_, idx) => (
-                          <input
-                            key={idx}
-                            type="text"
-                            required
-                            value={companionNames[idx] ?? (idx === 0 ? selectedGuest.name : '')}
-                            onChange={(e) => handleCompanionNameChange(idx, e.target.value)}
-                            placeholder={idx === 0 ? `Nome completo (${selectedGuest.name})` : `Nome do acompanhante ${idx + 1}`}
-                            className="w-full px-3.5 py-2.5 bg-white border border-stone-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#882C4E]"
-                          />
-                        ))}
-                      </div>
+                            <div className="flex items-center gap-2">
+                              {Array.from({ length: allowedCompanions + 1 }, (_, i) => i + 1).map(num => (
+                                <button
+                                  key={num}
+                                  type="button"
+                                  onClick={() => handleCountChange(num)}
+                                  className={`w-11 h-11 rounded-xl text-sm font-bold transition cursor-pointer ${
+                                    confirmedCount === num
+                                      ? 'bg-[#882C4E] text-white shadow-md'
+                                      : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-100'
+                                  }`}
+                                >
+                                  {num}
+                                </button>
+                              ))}
+                              <span className="text-xs font-bold text-[#882C4E] ml-2">
+                                {confirmedCount === 1 ? 'Apenas eu (1 pessoa)' : `${confirmedCount} pessoas no total`}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Companion Names Inputs */}
+                          {confirmedCount > 1 ? (
+                            <div className="space-y-3 pt-3 border-t border-stone-200">
+                              <div className="flex items-center gap-1.5 text-xs font-bold text-stone-800">
+                                <Users className="w-4 h-4 text-[#882C4E]" />
+                                <span>Confirmação dos Nomes (Obrigatório para entrada no evento):</span>
+                              </div>
+                              <p className="text-[11px] text-stone-500">
+                                Conforme determinado pelo cerimonial, informe o nome completo de cada pessoa que você vai levar:
+                              </p>
+
+                              <div className="p-3 bg-white rounded-xl border border-stone-200 text-xs">
+                                <span className="text-stone-400 text-[10px] uppercase font-bold block">1. Titular do Convite</span>
+                                <span className="font-bold text-stone-900">{selectedGuest.name}</span>
+                              </div>
+
+                              {Array.from({ length: confirmedCount - 1 }).map((_, idx) => (
+                                <div key={idx}>
+                                  <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                                    {idx + 2}. Nome completo do {idx + 1}º Acompanhante *
+                                  </label>
+                                  <input
+                                    type="text"
+                                    required
+                                    value={companionNames[idx + 1] || ''}
+                                    onChange={(e) => handleCompanionNameChange(idx + 1, e.target.value)}
+                                    placeholder={`Ex: Nome completo do acompanhante ${idx + 1}`}
+                                    className="w-full px-3.5 py-2.5 bg-white border border-stone-300 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#882C4E]/30 focus:border-[#882C4E]"
+                                  />
+                                </div>
+                              ))}
+
+                              {companionError && (
+                                <p className="text-xs text-rose-700 font-semibold flex items-center gap-1 bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                                  <AlertCircle className="w-4 h-4 shrink-0" />
+                                  <span>{companionError}</span>
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-white rounded-xl border border-stone-200 text-xs text-stone-600">
+                              Confirmando presença <b>apenas para você ({selectedGuest.name})</b>, sem acompanhantes.
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Dietary restrictions */}
                       <div>

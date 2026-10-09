@@ -32,7 +32,12 @@ function loadDB(): DBData {
   try {
     if (fs.existsSync(DB_FILE)) {
       const content = fs.readFileSync(DB_FILE, 'utf-8');
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      // Clean out any legacy mock events
+      parsed.events = (parsed.events || []).filter(
+        (e: any) => e.slug !== 'casamento-amanda-guilherme' && e.id !== 'event-1' && e.id !== 'event-2'
+      );
+      return parsed;
     }
   } catch (err) {
     console.error('Error reading db.json:', err);
@@ -41,7 +46,7 @@ function loadDB(): DBData {
   const defaultData: DBData = {
     settings: DEFAULT_SETTINGS,
     budgets: INITIAL_BUDGETS,
-    events: INITIAL_EVENTS,
+    events: [],
   };
   saveDB(defaultData);
   return defaultData;

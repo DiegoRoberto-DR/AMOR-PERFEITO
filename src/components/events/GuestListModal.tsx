@@ -3,11 +3,12 @@ import { EventRsvp, Guest, RsvpStatus } from '../../types';
 import { 
   X, Plus, Users, Search, MessageCircle, Trash2, CheckCircle2, 
   XCircle, Clock, FileDown, Upload, Utensils, Heart, Share2, Sparkles, FileText,
-  Edit2, Phone, Save
+  Edit2, Phone, Save, User, UserCheck
 } from 'lucide-react';
 import { openGuestRsvpWhatsApp } from '../../utils/whatsapp';
 import { generateGuestListPDF } from '../../utils/pdfGenerator';
 import { Storage } from '../../utils/storage';
+import { encodeEventForUrl } from '../../utils/urlSync';
 
 interface GuestListModalProps {
   isOpen: boolean;
@@ -39,10 +40,12 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
   const [phone, setPhone] = useState('');
   const [category, setCategory] = useState<'Família' | 'Padrinhos' | 'Amigos' | 'Trabalho' | 'Geral'>('Geral');
   const [tableNumber, setTableNumber] = useState('');
+  const [canBringCompanions, setCanBringCompanions] = useState(false);
   const [maxCompanions, setMaxCompanions] = useState(1);
 
   // Bulk State
   const [bulkText, setBulkText] = useState('');
+  const [bulkCanBring, setBulkCanBring] = useState(false);
   const [bulkDefaultCompanions, setBulkDefaultCompanions] = useState(1);
 
   const guests = event.guests || [];
@@ -51,13 +54,16 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
     e.preventDefault();
     if (!name.trim()) return;
 
+    const allowed = canBringCompanions ? Number(maxCompanions) || 1 : 0;
+
     const newGuest: Guest = {
       id: `g-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       name: name.trim(),
       phone: phone.trim(),
       category,
       tableNumber: tableNumber.trim(),
-      maxCompanions: Number(maxCompanions) || 0,
+      canBringCompanions,
+      maxCompanions: allowed,
       status: 'pending',
       confirmedCount: 0,
       companionNames: [],
@@ -70,6 +76,8 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
     setName('');
     setPhone('');
     setTableNumber('');
+    setCanBringCompanions(false);
+    setMaxCompanions(1);
     setShowAddForm(false);
   };
 
@@ -84,6 +92,8 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
       alert('Por favor, cole ao menos um nome.');
       return;
     }
+
+    const allowed = bulkCanBring ? Number(bulkDefaultCompanions) || 1 : 0;
 
     const newGuests: Guest[] = lines.map((line, idx) => {
       let guestName = line;
@@ -105,7 +115,8 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
         phone: guestPhone,
         category: 'Geral',
         tableNumber: '',
-        maxCompanions: Number(bulkDefaultCompanions) || 0,
+        canBringCompanions: bulkCanBring,
+        maxCompanions: allowed,
         status: 'pending',
         confirmedCount: 0,
         companionNames: [],
@@ -197,10 +208,11 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
 
   const getRsvpBaseUrl = (guestId?: string) => {
     const origin = window.location.origin;
+    const ed = encodeEventForUrl(event);
     if (guestId) {
-      return `${origin}/?rsvp=${event.slug}&convidado=${guestId}`;
+      return `${origin}/?rsvp=${event.slug}&convidado=${guestId}&ed=${ed}`;
     }
-    return `${origin}/?rsvp=${event.slug}`;
+    return `${origin}/?rsvp=${event.slug}&ed=${ed}`;
   };
 
   return (
@@ -303,7 +315,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
 
         {/* Toggle Form: Single Add */}
         {showAddForm && (
-          <form onSubmit={handleAddSingle} className="p-5 bg-rose-50/50 border-b border-rose-200 space-y-3 shrink-0">
+          <form onSubmit={handleAddSingle} className="p-5 bg-rose-50/50 border-b border-rose-200 space-y-4 shrink-0">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#882C4E]">
                 Cadastrar Novo Convidado / Família
@@ -317,24 +329,24 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="sm:col-span-2">
                 <label className="block text-[11px] font-semibold text-stone-700 mb-1">
-                  Nome na Lista (ou Família) *
+                  Nome do Convidado / Titular *
                 </label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex: Carlos Eduardo e Família"
+                  placeholder="Ex: Carlos Eduardo Ferreira"
                   className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs focus:outline-none"
                 />
               </div>
 
               <div>
                 <label className="block text-[11px] font-semibold text-stone-700 mb-1">
-                  Telefone / WhatsApp
+                  Telefone / WhatsApp com DDD
                 </label>
                 <input
                   type="text"
@@ -361,21 +373,91 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                   <option value="Geral">Geral</option>
                 </select>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-stone-700 mb-1">
-                  Acompanhantes
+            {/* MANDATORY COMPANION RULE FOR ADMIN */}
+            <div className="p-3 bg-white rounded-xl border border-stone-200 space-y-2.5">
+              <label className="block text-[11px] font-bold text-stone-800">
+                Pode levar acompanhante(s)? *
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label
+                  className={`p-2.5 rounded-xl border cursor-pointer flex items-center gap-2.5 transition ${
+                    !canBringCompanions
+                      ? 'bg-rose-50/70 border-[#882C4E] text-[#882C4E] font-bold'
+                      : 'bg-stone-50 border-stone-200 text-stone-600'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="modalCanBring"
+                    checked={!canBringCompanions}
+                    onChange={() => {
+                      setCanBringCompanions(false);
+                      setMaxCompanions(0);
+                    }}
+                    className="w-3.5 h-3.5 text-[#882C4E]"
+                  />
+                  <div>
+                    <div className="text-xs">Não (Convite Individual)</div>
+                    <div className="text-[10px] text-stone-500 font-normal">
+                      Não pode levar ninguém
+                    </div>
+                  </div>
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="10"
-                  value={maxCompanions}
-                  onChange={(e) => setMaxCompanions(Number(e.target.value))}
-                  title="Número de acompanhantes além do titular (0 = individual)"
-                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs focus:outline-none"
-                />
+
+                <label
+                  className={`p-2.5 rounded-xl border cursor-pointer flex items-center gap-2.5 transition ${
+                    canBringCompanions
+                      ? 'bg-rose-50/70 border-[#882C4E] text-[#882C4E] font-bold'
+                      : 'bg-stone-50 border-stone-200 text-stone-600'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="modalCanBring"
+                    checked={canBringCompanions}
+                    onChange={() => {
+                      setCanBringCompanions(true);
+                      if (maxCompanions === 0) setMaxCompanions(1);
+                    }}
+                    className="w-3.5 h-3.5 text-[#882C4E]"
+                  />
+                  <div>
+                    <div className="text-xs">Sim (Pode levar acompanhantes)</div>
+                    <div className="text-[10px] text-stone-500 font-normal">
+                      Deverá confirmar nomes no RSVP
+                    </div>
+                  </div>
+                </label>
               </div>
+
+              {canBringCompanions && (
+                <div className="pt-2 border-t border-stone-100 space-y-1.5 animate-in fade-in">
+                  <label className="block text-[11px] font-semibold text-stone-700">
+                    Quantas pessoas ele pode levar além dele?
+                  </label>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[1, 2, 3, 4, 5, 6].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setMaxCompanions(num)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          maxCompanions === num
+                            ? 'bg-[#882C4E] text-white shadow-xs'
+                            : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                        }`}
+                      >
+                        +{num} {num === 1 ? 'pessoa' : 'pessoas'}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-stone-500">
+                    Total do convite: até <b>{maxCompanions + 1} pessoas</b>.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-1">
@@ -415,23 +497,66 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
               required
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
-              placeholder="Carlos Eduardo e Família, (11) 98765-4321&#10;Fernanda Lima & Convidado&#10;Mariana Souza, (11) 99123-4567&#10;Tio Roberto"
+              placeholder="Carlos Eduardo, (11) 98765-4321&#10;Fernanda Lima&#10;Mariana Souza, (11) 99123-4567&#10;Tio Roberto"
               className="w-full p-3 bg-white border border-stone-200 rounded-xl text-xs font-mono focus:outline-none"
             />
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-stone-600">
-                <span>Acompanhantes por convite:</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="10"
-                  value={bulkDefaultCompanions}
-                  onChange={(e) => setBulkDefaultCompanions(Number(e.target.value))}
-                  className="w-16 px-2 py-1 bg-white border border-stone-300 rounded-lg text-xs"
-                />
+            <div className="p-3 bg-white rounded-xl border border-stone-200 space-y-2">
+              <div className="text-[11px] font-bold text-stone-800">
+                Estes convidados colados poderão levar acompanhantes?
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1.5 text-xs text-stone-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="bulkCanBringModal"
+                    checked={!bulkCanBring}
+                    onChange={() => {
+                      setBulkCanBring(false);
+                      setBulkDefaultCompanions(0);
+                    }}
+                    className="text-[#882C4E]"
+                  />
+                  <span>Não (Convites Individuais)</span>
+                </label>
+
+                <label className="flex items-center gap-1.5 text-xs text-stone-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="bulkCanBringModal"
+                    checked={bulkCanBring}
+                    onChange={() => {
+                      setBulkCanBring(true);
+                      if (bulkDefaultCompanions === 0) setBulkDefaultCompanions(1);
+                    }}
+                    className="text-[#882C4E]"
+                  />
+                  <span>Sim (Pode levar acompanhantes)</span>
+                </label>
               </div>
 
+              {bulkCanBring && (
+                <div className="flex items-center gap-2 pt-1 text-xs text-stone-600">
+                  <span>Acompanhantes por convite:</span>
+                  {[1, 2, 3, 4, 5].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setBulkDefaultCompanions(num)}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
+                        bulkDefaultCompanions === num
+                          ? 'bg-[#882C4E] text-white shadow-xs'
+                          : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                      }`}
+                    >
+                      +{num}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end">
               <button
                 type="submit"
                 className="px-4 py-2 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
@@ -481,7 +606,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                 <thead className="bg-[#FAF8F5] border-b border-stone-200 text-stone-600 font-semibold">
                   <tr>
                     <th className="py-3 px-4">Convidado / Família</th>
-                    <th className="py-3 px-3 text-center">Convite</th>
+                    <th className="py-3 px-3 text-center">Tipo de Convite</th>
                     <th className="py-3 px-3 text-center">Status</th>
                     <th className="py-3 px-3">Detalhes da Confirmação</th>
                     <th className="py-3 px-4 text-right">Alteração Manual (Admin)</th>
@@ -513,13 +638,19 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                           </div>
                         </td>
 
-                        {/* Max companions */}
+                        {/* Max companions / Individual Badge */}
                         <td className="py-3 px-3 text-center">
-                          <span className="font-semibold text-stone-700">
-                            {guest.maxCompanions === 0
-                              ? 'Individual'
-                              : `Até +${guest.maxCompanions}`}
-                          </span>
+                          {guest.maxCompanions > 0 ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-800 rounded-full font-semibold text-[11px] border border-purple-200">
+                              <Users className="w-3 h-3" />
+                              <span>Até +{guest.maxCompanions} pessoa{guest.maxCompanions === 1 ? '' : 's'}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-stone-100 text-stone-700 rounded-full font-medium text-[11px] border border-stone-200">
+                              <User className="w-3 h-3 text-stone-500" />
+                              <span>Individual</span>
+                            </span>
+                          )}
                         </td>
 
                         {/* Status badge */}
@@ -675,7 +806,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                 </button>
               </div>
 
-              <form onSubmit={handleSaveEditedGuest} className="space-y-3 text-xs">
+              <form onSubmit={handleSaveEditedGuest} className="space-y-3.5 text-xs">
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">Nome no Convite *</label>
                   <input
@@ -713,30 +844,55 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-stone-700 mb-1">Acompanhantes Permitidos</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={editingGuest.maxCompanions}
-                      onChange={(e) => setEditingGuest({ ...editingGuest, maxCompanions: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
-                    />
+                {/* Companion Option in Edit Modal */}
+                <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-2">
+                  <label className="block font-bold text-stone-800">
+                    Pode levar acompanhante(s)?
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingGuest({ ...editingGuest, maxCompanions: 0, canBringCompanions: false })}
+                      className={`p-2 rounded-lg font-bold border transition cursor-pointer ${
+                        editingGuest.maxCompanions === 0
+                          ? 'bg-[#882C4E] text-white border-[#882C4E]'
+                          : 'bg-white text-stone-700 border-stone-300'
+                      }`}
+                    >
+                      Não (Individual)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingGuest({ ...editingGuest, maxCompanions: Math.max(1, editingGuest.maxCompanions), canBringCompanions: true })}
+                      className={`p-2 rounded-lg font-bold border transition cursor-pointer ${
+                        editingGuest.maxCompanions > 0
+                          ? 'bg-[#882C4E] text-white border-[#882C4E]'
+                          : 'bg-white text-stone-700 border-stone-300'
+                      }`}
+                    >
+                      Sim (Acompanhantes)
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block font-semibold text-stone-700 mb-1">Pessoas Confirmadas</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={editingGuest.confirmedCount || 0}
-                      onChange={(e) => setEditingGuest({ ...editingGuest, confirmedCount: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
-                    />
-                  </div>
+                  {editingGuest.maxCompanions > 0 && (
+                    <div className="pt-2 border-t border-stone-200 space-y-1">
+                      <span className="text-[11px] text-stone-600 block">Quantos acompanhantes permitidos além dele:</span>
+                      <div className="flex gap-1.5">
+                        {[1, 2, 3, 4, 5, 6].map(num => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setEditingGuest({ ...editingGuest, maxCompanions: num })}
+                            className={`px-2.5 py-1 rounded text-xs font-bold ${
+                              editingGuest.maxCompanions === num ? 'bg-[#882C4E] text-white' : 'bg-white border text-stone-700'
+                            }`}
+                          >
+                            +{num}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { EventRsvp, Guest } from '../../types';
-import { X, Sparkles, Calendar, MapPin, Image as ImageIcon, Users, Plus, Trash2, Upload, Phone, CheckCircle2, Heart } from 'lucide-react';
+import { X, Sparkles, Calendar, MapPin, Image as ImageIcon, Users, Plus, Trash2, Upload, Phone, CheckCircle2, User, UserCheck } from 'lucide-react';
 
 interface EventFormModalProps {
   isOpen: boolean;
@@ -59,10 +59,15 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
   const [singleName, setSingleName] = useState('');
   const [singlePhone, setSinglePhone] = useState('');
   const [singleCategory, setSingleCategory] = useState<'Família' | 'Padrinhos' | 'Amigos' | 'Trabalho' | 'Geral'>('Geral');
-  const [singleCompanions, setSingleCompanions] = useState(1);
+  
+  // Explicit companion rules: Can bring companions?
+  const [singleCanBring, setSingleCanBring] = useState<boolean>(false);
+  const [singleCompanions, setSingleCompanions] = useState<number>(1);
+
   const [bulkText, setBulkText] = useState('');
-  const [bulkCompanions, setBulkCompanions] = useState(1);
-  const [activeGuestTab, setActiveGuestTab] = useState<'bulk' | 'single'>('bulk');
+  const [bulkCanBring, setBulkCanBring] = useState<boolean>(false);
+  const [bulkCompanions, setBulkCompanions] = useState<number>(1);
+  const [activeGuestTab, setActiveGuestTab] = useState<'bulk' | 'single'>('single');
 
   React.useEffect(() => {
     if (initialEvent) {
@@ -74,7 +79,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
       setLocationName(initialEvent.locationName || '');
       setLocationAddress(initialEvent.locationAddress || '');
       setLocationMapsUrl(initialEvent.locationMapsUrl || '');
-      setDeadlineDate(initialEvent.deadlineDate || '');
+      deadlineDate ? setDeadlineDate(initialEvent.deadlineDate || '') : setDeadlineDate(initialEvent.deadlineDate || '');
       setWelcomeMessage(initialEvent.welcomeMessage || '');
       setDressCode(initialEvent.dressCode || 'Traje Passeio Completo / Social');
       setBannerImage(initialEvent.bannerImage || PRESET_BANNERS[0].url);
@@ -113,12 +118,15 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
       return;
     }
 
+    const companionsAllowed = singleCanBring ? Number(singleCompanions) || 1 : 0;
+
     const newGuest: Guest = {
       id: `g-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       name: singleName.trim(),
       phone: singlePhone.trim(),
       category: singleCategory,
-      maxCompanions: Number(singleCompanions) || 0,
+      canBringCompanions: singleCanBring,
+      maxCompanions: companionsAllowed,
       status: 'pending',
       confirmedCount: 0,
       companionNames: [],
@@ -129,6 +137,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
     setGuests([...guests, newGuest]);
     setSingleName('');
     setSinglePhone('');
+    // Keep companion selection ready for next
   };
 
   const handleImportBulkGuests = (e: React.MouseEvent) => {
@@ -143,8 +152,9 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
       return;
     }
 
+    const companionsAllowed = bulkCanBring ? Number(bulkCompanions) || 1 : 0;
+
     const newGuests: Guest[] = lines.map((line, idx) => {
-      // Check if line has "Nome, Telefone" or "Nome - Telefone"
       let guestName = line;
       let guestPhone = '';
 
@@ -163,7 +173,8 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
         name: guestName,
         phone: guestPhone,
         category: 'Geral',
-        maxCompanions: Number(bulkCompanions) || 0,
+        canBringCompanions: bulkCanBring,
+        maxCompanions: companionsAllowed,
         status: 'pending',
         confirmedCount: 0,
         companionNames: [],
@@ -397,7 +408,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 2: GUEST LIST SETUP (MANDATORY REQUIREMENT: CREATED DIRECTLY INSIDE EVENT CREATION) */}
+          {/* SECTION 2: GUEST LIST SETUP WITH MANDATORY COMPANION RULES */}
           <div className="pt-4 border-t-2 border-rose-100">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
               <div>
@@ -406,21 +417,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                   <span>2. Lista de Convidados deste Evento ({guests.length} adicionados)</span>
                 </h3>
                 <p className="text-[11px] text-stone-500">
-                  Os convidados só conseguirão confirmar presença se seus nomes constarem nesta lista criada por você.
+                  Defina cada convidado e se ele tem direito a levar acompanhantes ou se é convite individual.
                 </p>
               </div>
 
               {/* Toggle bulk vs single */}
               <div className="flex items-center bg-stone-100 p-1 rounded-xl text-xs self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={() => setActiveGuestTab('bulk')}
-                  className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                    activeGuestTab === 'bulk' ? 'bg-white text-[#882C4E] shadow-2xs' : 'text-stone-600'
-                  }`}
-                >
-                  Colar Lista em Lote
-                </button>
                 <button
                   type="button"
                   onClick={() => setActiveGuestTab('single')}
@@ -430,62 +432,31 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 >
                   Adicionar 1 por 1
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveGuestTab('bulk')}
+                  className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                    activeGuestTab === 'bulk' ? 'bg-white text-[#882C4E] shadow-2xs' : 'text-stone-600'
+                  }`}
+                >
+                  Colar Lista em Lote
+                </button>
               </div>
             </div>
 
-            {/* Bulk Import Box */}
-            {activeGuestTab === 'bulk' ? (
-              <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-200/80 space-y-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-stone-700">
-                    Cole os nomes dos convidados abaixo (um por linha):
-                  </label>
-                  <p className="text-[10px] text-stone-500">
-                    Dica: Você pode colar apenas os nomes, ou no formato "Nome, Telefone" (ex: Carlos Alberto, (11) 98765-4321).
-                  </p>
-                </div>
-                <textarea
-                  rows={4}
-                  value={bulkText}
-                  onChange={(e) => setBulkText(e.target.value)}
-                  placeholder="Carlos Alberto Ferreira, (11) 98765-4321&#10;Fernanda Lima & Convidado&#10;Marcelo Ribeiro, (11) 99123-4567&#10;Mariana Souza"
-                  className="w-full p-3 bg-white border border-stone-200 rounded-xl text-xs font-mono focus:outline-none"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs text-stone-600">
-                    <span>Acompanhantes por convite:</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={bulkCompanions}
-                      onChange={(e) => setBulkCompanions(Number(e.target.value))}
-                      className="w-14 px-2 py-1 bg-white border border-stone-300 rounded-lg text-xs"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleImportBulkGuests}
-                    className="px-4 py-2 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Adicionar à Lista</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Single Add Box */
-              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            {/* Single Add Box */}
+            {activeGuestTab === 'single' ? (
+              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block text-[11px] font-semibold text-stone-700 mb-1">
-                      Nome do Convidado / Família *
+                      Nome do Convidado / Titular do Convite *
                     </label>
                     <input
                       type="text"
                       value={singleName}
                       onChange={(e) => setSingleName(e.target.value)}
-                      placeholder="Ex: Carlos Alberto Ferreira & Família"
+                      placeholder="Ex: Carlos Alberto Ferreira"
                       className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs focus:outline-none"
                     />
                   </div>
@@ -503,20 +474,91 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                       className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs focus:outline-none"
                     />
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-[11px] font-semibold text-stone-700 mb-1">
-                      Acompanhantes
+                {/* MANDATORY COMPANION RULE SELECTOR */}
+                <div className="p-3 bg-white rounded-xl border border-stone-200 space-y-2.5">
+                  <label className="block text-[11px] font-bold text-stone-800">
+                    Este convidado pode levar acompanhante(s)? *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label
+                      className={`p-2.5 rounded-xl border cursor-pointer flex items-center gap-2.5 transition ${
+                        !singleCanBring
+                          ? 'bg-rose-50/70 border-[#882C4E] text-[#882C4E] font-bold'
+                          : 'bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="singleCanBring"
+                        checked={!singleCanBring}
+                        onChange={() => {
+                          setSingleCanBring(false);
+                          setSingleCompanions(0);
+                        }}
+                        className="w-3.5 h-3.5 text-[#882C4E]"
+                      />
+                      <div>
+                        <div className="text-xs">Não (Convite Individual)</div>
+                        <div className="text-[10px] text-stone-500 font-normal">
+                          Não poderá levar ninguém e nem digitar nomes adicionais
+                        </div>
+                      </div>
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={singleCompanions}
-                      onChange={(e) => setSingleCompanions(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs focus:outline-none"
-                    />
+
+                    <label
+                      className={`p-2.5 rounded-xl border cursor-pointer flex items-center gap-2.5 transition ${
+                        singleCanBring
+                          ? 'bg-rose-50/70 border-[#882C4E] text-[#882C4E] font-bold'
+                          : 'bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="singleCanBring"
+                        checked={singleCanBring}
+                        onChange={() => {
+                          setSingleCanBring(true);
+                          if (singleCompanions === 0) setSingleCompanions(1);
+                        }}
+                        className="w-3.5 h-3.5 text-[#882C4E]"
+                      />
+                      <div>
+                        <div className="text-xs">Sim (Pode levar acompanhantes)</div>
+                        <div className="text-[10px] text-stone-500 font-normal">
+                          Deverá confirmar o nome de cada acompanhante no RSVP
+                        </div>
+                      </div>
+                    </label>
                   </div>
+
+                  {singleCanBring && (
+                    <div className="pt-2 border-t border-stone-100 space-y-1.5 animate-in fade-in">
+                      <label className="block text-[11px] font-semibold text-stone-700">
+                        Quantas pessoas ele pode levar além dele?
+                      </label>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {[1, 2, 3, 4, 5, 6].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setSingleCompanions(num)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                              singleCompanions === num
+                                ? 'bg-[#882C4E] text-white shadow-xs'
+                                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                            }`}
+                          >
+                            +{num} {num === 1 ? 'pessoa' : 'pessoas'}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-stone-500">
+                        Total do convite: até <b>{singleCompanions + 1} pessoas</b> (1 titular + {singleCompanions} acompanhante{singleCompanions === 1 ? '' : 's'}).
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-1">
@@ -545,6 +587,91 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                   </button>
                 </div>
               </div>
+            ) : (
+              /* Bulk Import Box */
+              <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-200/80 space-y-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-stone-700">
+                    Cole os nomes dos convidados abaixo (um por linha):
+                  </label>
+                  <p className="text-[10px] text-stone-500">
+                    Dica: Você pode colar apenas os nomes, ou no formato "Nome, Telefone" (ex: Carlos Alberto, (11) 98765-4321).
+                  </p>
+                </div>
+                <textarea
+                  rows={4}
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  placeholder="Carlos Alberto Ferreira, (11) 98765-4321&#10;Fernanda Lima&#10;Marcelo Ribeiro, (11) 99123-4567&#10;Mariana Souza"
+                  className="w-full p-3 bg-white border border-stone-200 rounded-xl text-xs font-mono focus:outline-none"
+                />
+
+                <div className="p-3 bg-white rounded-xl border border-rose-200 space-y-2">
+                  <div className="text-[11px] font-bold text-stone-800">
+                    Estes convidados colados poderão levar acompanhantes?
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs text-stone-700 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulkCanBring"
+                        checked={!bulkCanBring}
+                        onChange={() => {
+                          setBulkCanBring(false);
+                          setBulkCompanions(0);
+                        }}
+                        className="text-[#882C4E]"
+                      />
+                      <span>Não (Convites Individuais)</span>
+                    </label>
+
+                    <label className="flex items-center gap-1.5 text-xs text-stone-700 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="bulkCanBring"
+                        checked={bulkCanBring}
+                        onChange={() => {
+                          setBulkCanBring(true);
+                          if (bulkCompanions === 0) setBulkCompanions(1);
+                        }}
+                        className="text-[#882C4E]"
+                      />
+                      <span>Sim (Pode levar acompanhantes)</span>
+                    </label>
+                  </div>
+
+                  {bulkCanBring && (
+                    <div className="flex items-center gap-2 pt-1 text-xs text-stone-600">
+                      <span>Acompanhantes por convite:</span>
+                      {[1, 2, 3, 4, 5].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setBulkCompanions(num)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                            bulkCompanions === num
+                              ? 'bg-[#882C4E] text-white shadow-xs'
+                              : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                          }`}
+                        >
+                          +{num}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleImportBulkGuests}
+                    className="px-4 py-2 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Adicionar Todos à Lista</span>
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* Added Guests Preview List */}
@@ -552,23 +679,29 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
               <div className="mt-3 p-3 bg-white rounded-2xl border border-stone-200 max-h-52 overflow-y-auto space-y-1.5">
                 <div className="text-[10px] uppercase font-bold text-stone-500 tracking-wider mb-1 flex items-center justify-between">
                   <span>Convidados adicionados para este evento:</span>
-                  <span className="text-[#882C4E] font-bold">{guests.length} convidados</span>
+                  <span className="text-[#882C4E] font-bold">{guests.length} cadastrados</span>
                 </div>
                 {guests.map((g, idx) => (
                   <div
                     key={g.id || idx}
-                    className="p-2 bg-stone-50 hover:bg-stone-100/70 rounded-xl border border-stone-200/60 flex items-center justify-between text-xs"
+                    className="p-2.5 bg-stone-50 hover:bg-stone-100/70 rounded-xl border border-stone-200/60 flex items-center justify-between text-xs"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-stone-800">{g.name}</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-stone-800">{g.name}</span>
                       {g.phone && (
                         <span className="px-2 py-0.5 bg-rose-50 text-[#882C4E] border border-rose-200 rounded text-[10px]">
                           📱 {g.phone}
                         </span>
                       )}
-                      <span className="text-[10px] text-stone-500">
-                        ({g.maxCompanions > 0 ? `Até ${g.maxCompanions + 1} pax` : 'Individual'})
-                      </span>
+                      {g.maxCompanions > 0 ? (
+                        <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded text-[10px] font-semibold">
+                          👥 Até +{g.maxCompanions} acompanhante{g.maxCompanions === 1 ? '' : 's'} (Total {g.maxCompanions + 1})
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-stone-100 text-stone-600 border border-stone-200 rounded text-[10px] font-medium">
+                          👤 Individual (Sem acompanhante)
+                        </span>
+                      )}
                     </div>
                     <button
                       type="button"

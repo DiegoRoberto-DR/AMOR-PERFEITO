@@ -120,141 +120,7 @@ export const INITIAL_BUDGETS: Budget[] = [
   }
 ];
 
-export const INITIAL_EVENTS: EventRsvp[] = [
-  {
-    id: 'event-1',
-    slug: 'casamento-amanda-guilherme',
-    title: 'Casamento de Amanda & Guilherme',
-    subtitle: 'Nossa história de amor celebrada com quem amamos',
-    eventType: 'Casamento',
-    eventDate: '2026-11-28',
-    eventTime: '17:00',
-    locationName: 'Villa Bisutti Espaço Casa do Ator',
-    locationAddress: 'Rua Casa do Ator, 642 - Vila Olímpia, São Paulo - SP',
-    locationMapsUrl: 'https://maps.google.com/?q=Villa+Bisutti+Casa+do+Ator',
-    deadlineDate: '2026-11-10',
-    welcomeMessage: 'É uma imensa alegria ter você conosco neste momento tão especial! Por favor, confirme a presença da sua família ou acompanhantes até o prazo para organizarmos cada detalhe com carinho.',
-    dressCode: 'Traje Passeio Completo / Social',
-    bannerImage: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1600&q=80',
-    giftRegistryUrl: 'https://noivos.site/amanda-guilherme',
-    createdAt: '2026-10-02',
-    updatedAt: '2026-10-08',
-    guests: [
-      {
-        id: 'g-1',
-        name: 'Carlos Alberto Ferreira & Família',
-        phone: '(11) 98888-1111',
-        category: 'Família',
-        tableNumber: 'Mesa 04',
-        maxCompanions: 3,
-        status: 'confirmed',
-        confirmedCount: 3,
-        companionNames: ['Carlos Alberto Ferreira', 'Patrícia Ferreira', 'Lucas Ferreira (Filho)'],
-        dietaryRestrictions: 'Patrícia é vegetariana',
-        message: 'Estamos muito ansiosos e felizes por vocês! Parabéns pelo grande passo!',
-        confirmedAt: '2026-10-07 14:32'
-      },
-      {
-        id: 'g-2',
-        name: 'Fernanda Lima (Madrinha)',
-        phone: '(11) 97777-2222',
-        category: 'Padrinhos',
-        tableNumber: 'Mesa 01',
-        maxCompanions: 1,
-        status: 'confirmed',
-        confirmedCount: 2,
-        companionNames: ['Fernanda Lima', 'Rodrigo Souza'],
-        dietaryRestrictions: '',
-        message: 'A melhor madrinha do mundo estará presente com todo o amor!',
-        confirmedAt: '2026-10-06 18:15'
-      },
-      {
-        id: 'g-3',
-        name: 'Marcelo Ribeiro & Esposa',
-        phone: '(11) 96666-3333',
-        category: 'Amigos',
-        tableNumber: 'Mesa 08',
-        maxCompanions: 1,
-        status: 'pending',
-        confirmedCount: 0,
-        companionNames: [],
-        dietaryRestrictions: '',
-        message: ''
-      },
-      {
-        id: 'g-4',
-        name: 'Tia Rosa Maria Mendonça',
-        phone: '(11) 95555-4444',
-        category: 'Família',
-        tableNumber: 'Mesa 03',
-        maxCompanions: 0,
-        status: 'pending',
-        confirmedCount: 0,
-        companionNames: [],
-        dietaryRestrictions: '',
-        message: ''
-      },
-      {
-        id: 'g-5',
-        name: 'Dr. Paulo Henrique Cavalcanti',
-        phone: '(11) 94444-5555',
-        category: 'Trabalho',
-        tableNumber: 'Mesa 10',
-        maxCompanions: 1,
-        status: 'declined',
-        confirmedCount: 0,
-        companionNames: [],
-        dietaryRestrictions: '',
-        message: 'Queridos noivos, estarei em viagem internacional a trabalho. Desejo toda a felicidade do mundo ao casal!',
-        confirmedAt: '2026-10-05 10:20'
-      }
-    ]
-  },
-  {
-    id: 'event-2',
-    slug: '15-anos-sophia-albuquerque',
-    title: '15 Anos de Sophia Albuquerque',
-    subtitle: 'Uma noite inesquecível de sonhos e celebração',
-    eventType: 'Aniversário de 15 Anos',
-    eventDate: '2026-12-12',
-    eventTime: '20:00',
-    locationName: 'Espaço Contemporâneo Festas',
-    locationAddress: 'Av. Ibirapuera, 2400 - Moema, São Paulo - SP',
-    deadlineDate: '2026-12-01',
-    welcomeMessage: 'Venha comemorar os meus 15 anos comigo! Confirme sua presença para que nossa festa seja perfeita!',
-    dressCode: 'Esporte Fino / Gala',
-    bannerImage: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=1600&q=80',
-    createdAt: '2026-10-06',
-    updatedAt: '2026-10-06',
-    guests: [
-      {
-        id: 'g-201',
-        name: 'Beatriz Vasques & Acompanhante',
-        phone: '(11) 99887-1122',
-        category: 'Amigos',
-        maxCompanions: 1,
-        status: 'confirmed',
-        confirmedCount: 2,
-        companionNames: ['Beatriz Vasques', 'Enzo Gabriel'],
-        dietaryRestrictions: 'Sem lactose para Beatriz',
-        message: 'Amiga, vai ser a melhor festa do ano! Te amo!',
-        confirmedAt: '2026-10-08 19:40'
-      },
-      {
-        id: 'g-202',
-        name: 'Gabriel Martins',
-        phone: '(11) 98888-3344',
-        category: 'Amigos',
-        maxCompanions: 0,
-        status: 'pending',
-        confirmedCount: 0,
-        companionNames: [],
-        dietaryRestrictions: '',
-        message: ''
-      }
-    ]
-  }
-];
+export const INITIAL_EVENTS: EventRsvp[] = [];
 
 export const normalizeText = (text: string): string => {
   if (!text) return '';
@@ -308,18 +174,32 @@ export const Storage = {
   getEvents(): EventRsvp[] {
     const raw = localStorage.getItem('amor_perfeito_events');
     if (!raw) {
-      localStorage.setItem('amor_perfeito_events', JSON.stringify(INITIAL_EVENTS));
-      return INITIAL_EVENTS;
+      localStorage.setItem('amor_perfeito_events', JSON.stringify([]));
+      return [];
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Filter out any leftover legacy demo event
+      return (parsed || []).filter((e: any) => e.slug !== 'casamento-amanda-guilherme' && e.id !== 'event-1');
     } catch {
-      return INITIAL_EVENTS;
+      return [];
     }
   },
 
   saveEvents(events: EventRsvp[]): void {
-    localStorage.setItem('amor_perfeito_events', JSON.stringify(events));
+    const cleaned = (events || []).filter((e: any) => e.slug !== 'casamento-amanda-guilherme' && e.id !== 'event-1');
+    localStorage.setItem('amor_perfeito_events', JSON.stringify(cleaned));
+  },
+
+  saveEventFromUrl(event: EventRsvp): void {
+    const events = this.getEvents();
+    const idx = events.findIndex(e => e.id === event.id || e.slug === event.slug);
+    if (idx >= 0) {
+      events[idx] = event;
+    } else {
+      events.unshift(event);
+    }
+    this.saveEvents(events);
   },
 
   getEventBySlugOrId(identifier: string): EventRsvp | undefined {

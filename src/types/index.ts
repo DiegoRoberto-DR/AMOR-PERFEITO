@@ -40,7 +40,8 @@ export interface Guest {
   phone?: string;
   category?: 'Família' | 'Padrinhos' | 'Amigos' | 'Trabalho' | 'Geral';
   tableNumber?: string;
-  maxCompanions: number; // quantos acompanhantes permitidos além do titular
+  maxCompanions: number; // quantos acompanhantes permitidos além do titular (0 se não pode levar ninguém, 1, 2, 3, 4, 5...)
+  canBringCompanions?: boolean; // Se o admin autorizou levar acompanhantes
   status: RsvpStatus;
   confirmedCount: number; // total de pessoas confirmadas (titular + acompanhantes)
   companionNames: string[];
