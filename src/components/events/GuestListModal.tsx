@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { EventRsvp, Guest, RsvpStatus } from '../../types';
 import { 
   X, Plus, Users, Search, MessageCircle, Trash2, CheckCircle2, 
-  XCircle, Clock, FileDown, Upload, Utensils, Heart, Share2, Sparkles, FileText
+  XCircle, Clock, FileDown, Upload, Utensils, Heart, Share2, Sparkles, FileText,
+  Edit2, Phone, Save
 } from 'lucide-react';
 import { openGuestRsvpWhatsApp } from '../../utils/whatsapp';
 import { generateGuestListPDF } from '../../utils/pdfGenerator';
@@ -29,6 +30,9 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
+
+  // Edit Guest Modal State
+  const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
 
   // Single Add State
   const [name, setName] = useState('');
@@ -81,19 +85,34 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
       return;
     }
 
-    const newGuests: Guest[] = lines.map((line, idx) => ({
-      id: `g-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
-      name: line,
-      phone: '',
-      category: 'Geral',
-      tableNumber: '',
-      maxCompanions: Number(bulkDefaultCompanions) || 0,
-      status: 'pending',
-      confirmedCount: 0,
-      companionNames: [],
-      dietaryRestrictions: '',
-      message: '',
-    }));
+    const newGuests: Guest[] = lines.map((line, idx) => {
+      let guestName = line;
+      let guestPhone = '';
+
+      if (line.includes(',')) {
+        const parts = line.split(',');
+        guestName = parts[0].trim();
+        guestPhone = parts.slice(1).join(',').trim();
+      } else if (line.includes(' - ')) {
+        const parts = line.split(' - ');
+        guestName = parts[0].trim();
+        guestPhone = parts.slice(1).join(' - ').trim();
+      }
+
+      return {
+        id: `g-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
+        name: guestName,
+        phone: guestPhone,
+        category: 'Geral',
+        tableNumber: '',
+        maxCompanions: Number(bulkDefaultCompanions) || 0,
+        status: 'pending',
+        confirmedCount: 0,
+        companionNames: [],
+        dietaryRestrictions: '',
+        message: '',
+      };
+    });
 
     const updated = [...newGuests, ...guests];
     onUpdateEventGuests(event.id, updated);
@@ -111,14 +130,28 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
   const handleManualStatusToggle = (guestId: string, newStatus: RsvpStatus) => {
     const updated = guests.map(g => {
       if (g.id !== guestId) return g;
+      const confirmedCount = newStatus === 'confirmed' ? (g.maxCompanions + 1) : 0;
+      const companionNames = newStatus === 'confirmed' 
+        ? (g.companionNames && g.companionNames.length > 0 ? g.companionNames : [g.name]) 
+        : [];
       return {
         ...g,
         status: newStatus,
-        confirmedCount: newStatus === 'confirmed' ? (g.maxCompanions + 1) : 0,
+        confirmedCount,
+        companionNames,
         confirmedAt: newStatus === 'confirmed' ? new Date().toLocaleString('pt-BR') : undefined
       };
     });
     onUpdateEventGuests(event.id, updated);
+  };
+
+  const handleSaveEditedGuest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGuest) return;
+
+    const updated = guests.map(g => (g.id === editingGuest.id ? editingGuest : g));
+    onUpdateEventGuests(event.id, updated);
+    setEditingGuest(null);
   };
 
   const filteredGuests = guests.filter(g => {
@@ -183,7 +216,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
               </span>
             </div>
             <p className="text-xs text-rose-100 font-light mt-0.5">
-              Os convidados confirmam presença buscando o nome exato cadastrado aqui.
+              Somente quem estiver nesta lista poderá confirmar presença. Como administrador, você pode alterar status manualmente.
             </p>
           </div>
 
@@ -210,7 +243,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5 text-emerald-700 font-semibold">
               <CheckCircle2 className="w-4 h-4" />
-              <span>{confirmedCount} convites confirmados ({totalPaxConfirmed} pessoas)</span>
+              <span>{confirmedCount} confirmados ({totalPaxConfirmed} pessoas)</span>
             </div>
             <div className="flex items-center gap-1.5 text-amber-700 font-medium">
               <Clock className="w-4 h-4" />
@@ -218,7 +251,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
             </div>
             <div className="flex items-center gap-1.5 text-rose-700 font-medium">
               <XCircle className="w-4 h-4" />
-              <span>{declinedCount} não irão</span>
+              <span>{declinedCount} recusados</span>
             </div>
           </div>
 
@@ -278,7 +311,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="text-stone-400 hover:text-stone-600 text-xs"
+                className="text-stone-400 hover:text-stone-600 text-xs cursor-pointer"
               >
                 Fechar
               </button>
@@ -331,7 +364,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
 
               <div>
                 <label className="block text-[11px] font-semibold text-stone-700 mb-1">
-                  Acompanhantes permitidos
+                  Acompanhantes
                 </label>
                 <input
                   type="number"
@@ -365,13 +398,13 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                   Importação Rápida em Lote (Cole sua lista)
                 </h4>
                 <p className="text-[11px] text-stone-500">
-                  Cole um nome por linha. Eles serão adicionados instantaneamente à lista nominal.
+                  Cole um nome por linha (suporta formato "Nome, Telefone"). Eles serão adicionados instantaneamente à lista nominal.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowBulkImport(false)}
-                className="text-stone-400 hover:text-stone-600 text-xs"
+                className="text-stone-400 hover:text-stone-600 text-xs cursor-pointer"
               >
                 Fechar
               </button>
@@ -382,13 +415,13 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
               required
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
-              placeholder="Carlos Eduardo e Família&#10;Fernanda Lima & Convidado&#10;Mariana Souza&#10;Tio Roberto"
+              placeholder="Carlos Eduardo e Família, (11) 98765-4321&#10;Fernanda Lima & Convidado&#10;Mariana Souza, (11) 99123-4567&#10;Tio Roberto"
               className="w-full p-3 bg-white border border-stone-200 rounded-xl text-xs font-mono focus:outline-none"
             />
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs text-stone-600">
-                <span>Acompanhantes padrão por convite:</span>
+                <span>Acompanhantes por convite:</span>
                 <input
                   type="number"
                   min="0"
@@ -451,7 +484,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                     <th className="py-3 px-3 text-center">Convite</th>
                     <th className="py-3 px-3 text-center">Status</th>
                     <th className="py-3 px-3">Detalhes da Confirmação</th>
-                    <th className="py-3 px-4 text-right">Ações</th>
+                    <th className="py-3 px-4 text-right">Alteração Manual (Admin)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -531,22 +564,27 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                               )}
                               {guest.confirmedAt && (
                                 <div className="text-[10px] text-stone-400">
-                                  Respondido em {guest.confirmedAt}
+                                  Registrado em {guest.confirmedAt}
                                 </div>
                               )}
                             </div>
-                          ) : guest.status === 'declined' && guest.message ? (
-                            <div className="text-[11px] text-stone-500 italic bg-stone-50 p-1.5 rounded">
-                              "{guest.message}"
+                          ) : guest.status === 'declined' ? (
+                            <div className="space-y-1 text-[11px]">
+                              <span className="text-rose-700 font-semibold">Ausência registrada</span>
+                              {guest.message && (
+                                <div className="text-stone-500 italic bg-stone-50 p-1.5 rounded">
+                                  "{guest.message}"
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <span className="text-[11px] text-stone-400 italic">Aguardando resposta pelo link</span>
                           )}
                         </td>
 
-                        {/* Actions */}
+                        {/* Actions (Admin manual control) */}
                         <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
                             {/* WhatsApp Direct Invite */}
                             <button
                               type="button"
@@ -557,33 +595,56 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                               <MessageCircle className="w-4 h-4" />
                             </button>
 
-                            {/* Manual Confirm Switch */}
-                            {guest.status !== 'confirmed' ? (
+                            {/* Manual Confirm Switch - Only Admin has power to change */}
+                            {guest.status !== 'confirmed' && (
                               <button
                                 type="button"
                                 onClick={() => handleManualStatusToggle(guest.id, 'confirmed')}
-                                className="p-1.5 bg-stone-100 hover:bg-emerald-50 text-stone-500 hover:text-emerald-700 rounded-lg transition cursor-pointer text-[10px] font-semibold"
-                                title="Confirmar manualmente no cerimonial"
+                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg transition cursor-pointer text-[10px] font-bold"
+                                title="Admin: Confirmar presença manualmente"
                               >
-                                Confirmar
+                                Sim
                               </button>
-                            ) : (
+                            )}
+
+                            {guest.status !== 'declined' && (
+                              <button
+                                type="button"
+                                onClick={() => handleManualStatusToggle(guest.id, 'declined')}
+                                className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition cursor-pointer text-[10px] font-bold"
+                                title="Admin: Marcar que não vai manualmente"
+                              >
+                                Não
+                              </button>
+                            )}
+
+                            {guest.status !== 'pending' && (
                               <button
                                 type="button"
                                 onClick={() => handleManualStatusToggle(guest.id, 'pending')}
-                                className="p-1.5 bg-stone-100 hover:bg-amber-50 text-stone-500 hover:text-amber-700 rounded-lg transition cursor-pointer text-[10px]"
-                                title="Voltar para pendente"
+                                className="px-2 py-1 bg-stone-100 hover:bg-amber-50 text-stone-600 hover:text-amber-800 rounded-lg transition cursor-pointer text-[10px]"
+                                title="Admin: Resetar resposta para pendente"
                               >
                                 Resetar
                               </button>
                             )}
+
+                            {/* Edit Guest Details Modal trigger */}
+                            <button
+                              type="button"
+                              onClick={() => setEditingGuest({ ...guest })}
+                              className="p-1.5 text-stone-500 hover:text-[#882C4E] hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Editar dados deste convidado"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
 
                             {/* Delete */}
                             <button
                               type="button"
                               onClick={() => handleDeleteGuest(guest.id)}
                               className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                              title="Remover convidado"
+                              title="Remover convidado da lista"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -597,6 +658,127 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
             </div>
           )}
         </div>
+
+        {/* Modal to Edit Guest (Manual Admin Edit) */}
+        {editingGuest && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs">
+            <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-stone-200 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+                <h4 className="font-serif font-bold text-base text-stone-900">
+                  Editar Convidado (Alteração pelo Administrador)
+                </h4>
+                <button
+                  onClick={() => setEditingGuest(null)}
+                  className="p-1 text-stone-400 hover:text-stone-600 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditedGuest} className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">Nome no Convite *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingGuest.name}
+                    onChange={(e) => setEditingGuest({ ...editingGuest, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-stone-700 mb-1">Telefone / WhatsApp</label>
+                    <input
+                      type="text"
+                      value={editingGuest.phone || ''}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, phone: e.target.value })}
+                      placeholder="(11) 98765-4321"
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-stone-700 mb-1">Status da Presença</label>
+                    <select
+                      value={editingGuest.status}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, status: e.target.value as RsvpStatus })}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
+                    >
+                      <option value="pending">Pendente</option>
+                      <option value="confirmed">Confirmado (Sim)</option>
+                      <option value="declined">Recusado (Não)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-stone-700 mb-1">Acompanhantes Permitidos</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={editingGuest.maxCompanions}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, maxCompanions: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-stone-700 mb-1">Pessoas Confirmadas</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={editingGuest.confirmedCount || 0}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, confirmedCount: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">Restrições Alimentares</label>
+                  <input
+                    type="text"
+                    value={editingGuest.dietaryRestrictions || ''}
+                    onChange={(e) => setEditingGuest({ ...editingGuest, dietaryRestrictions: e.target.value })}
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">Mensagem ou Observação</label>
+                  <textarea
+                    rows={2}
+                    value={editingGuest.message || ''}
+                    onChange={(e) => setEditingGuest({ ...editingGuest, message: e.target.value })}
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-stone-100">
+                  <button
+                    type="button"
+                    onClick={() => setEditingGuest(null)}
+                    className="px-4 py-2 border border-stone-200 rounded-xl text-stone-600 hover:bg-stone-50 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Salvar Alterações</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

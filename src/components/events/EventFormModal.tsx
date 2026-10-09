@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { EventRsvp, Guest } from '../../types';
-import { X, Sparkles, Calendar, MapPin, Image as ImageIcon, Users, Plus, Trash2, Upload, Phone } from 'lucide-react';
+import { X, Sparkles, Calendar, MapPin, Image as ImageIcon, Users, Plus, Trash2, Upload, Phone, CheckCircle2, Heart } from 'lucide-react';
 
 interface EventFormModalProps {
   isOpen: boolean;
@@ -58,6 +58,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
   const [guests, setGuests] = useState<Guest[]>(initialEvent?.guests || []);
   const [singleName, setSingleName] = useState('');
   const [singlePhone, setSinglePhone] = useState('');
+  const [singleCategory, setSingleCategory] = useState<'Família' | 'Padrinhos' | 'Amigos' | 'Trabalho' | 'Geral'>('Geral');
   const [singleCompanions, setSingleCompanions] = useState(1);
   const [bulkText, setBulkText] = useState('');
   const [bulkCompanions, setBulkCompanions] = useState(1);
@@ -97,6 +98,14 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
     }
   }, [initialEvent, isOpen]);
 
+  const formatPhone = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+  };
+
   const handleAddSingleGuest = (e: React.MouseEvent) => {
     e.preventDefault();
     if (!singleName.trim()) {
@@ -108,7 +117,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
       id: `g-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       name: singleName.trim(),
       phone: singlePhone.trim(),
-      category: 'Geral',
+      category: singleCategory,
       maxCompanions: Number(singleCompanions) || 0,
       status: 'pending',
       confirmedCount: 0,
@@ -130,22 +139,38 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
       .filter(l => l.length > 0);
 
     if (lines.length === 0) {
-      alert('Cole ao menos um nome para adicionar.');
+      alert('Cole ao menos um nome para adicionar à lista.');
       return;
     }
 
-    const newGuests: Guest[] = lines.map((name, idx) => ({
-      id: `g-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
-      name,
-      phone: '',
-      category: 'Geral',
-      maxCompanions: Number(bulkCompanions) || 0,
-      status: 'pending',
-      confirmedCount: 0,
-      companionNames: [],
-      dietaryRestrictions: '',
-      message: '',
-    }));
+    const newGuests: Guest[] = lines.map((line, idx) => {
+      // Check if line has "Nome, Telefone" or "Nome - Telefone"
+      let guestName = line;
+      let guestPhone = '';
+
+      if (line.includes(',')) {
+        const parts = line.split(',');
+        guestName = parts[0].trim();
+        guestPhone = parts.slice(1).join(',').trim();
+      } else if (line.includes(' - ')) {
+        const parts = line.split(' - ');
+        guestName = parts[0].trim();
+        guestPhone = parts.slice(1).join(' - ').trim();
+      }
+
+      return {
+        id: `g-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
+        name: guestName,
+        phone: guestPhone,
+        category: 'Geral',
+        maxCompanions: Number(bulkCompanions) || 0,
+        status: 'pending',
+        confirmedCount: 0,
+        companionNames: [],
+        dietaryRestrictions: '',
+        message: '',
+      };
+    });
 
     setGuests([...guests, ...newGuests]);
     setBulkText('');
@@ -207,7 +232,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
               {initialEvent ? 'Editar Evento' : 'Cadastrar Novo Evento'}
             </h2>
             <p className="text-xs text-rose-100 font-light">
-              Configure as informações e crie a lista de convidados oficial deste evento
+              Configure as informações e monte a lista de convidados oficial diretamente neste formulário
             </p>
           </div>
           <button
@@ -372,25 +397,25 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 2: GUEST LIST SETUP (MANDATORY REQUIREMENT: CREATED DURING EVENT SETUP) */}
-          <div className="pt-4 border-t border-stone-200">
-            <div className="flex items-center justify-between mb-3">
+          {/* SECTION 2: GUEST LIST SETUP (MANDATORY REQUIREMENT: CREATED DIRECTLY INSIDE EVENT CREATION) */}
+          <div className="pt-4 border-t-2 border-rose-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-[#882C4E] flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5" />
-                  <span>2. Lista Nominal de Convidados ({guests.length} cadastrados)</span>
+                  <Users className="w-4 h-4" />
+                  <span>2. Lista de Convidados deste Evento ({guests.length} adicionados)</span>
                 </h3>
                 <p className="text-[11px] text-stone-500">
-                  Os convidados só poderão confirmar presença caso seus nomes estejam nesta lista.
+                  Os convidados só conseguirão confirmar presença se seus nomes constarem nesta lista criada por você.
                 </p>
               </div>
 
               {/* Toggle bulk vs single */}
-              <div className="flex items-center bg-stone-100 p-1 rounded-xl text-xs">
+              <div className="flex items-center bg-stone-100 p-1 rounded-xl text-xs self-start sm:self-auto">
                 <button
                   type="button"
                   onClick={() => setActiveGuestTab('bulk')}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
+                  className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
                     activeGuestTab === 'bulk' ? 'bg-white text-[#882C4E] shadow-2xs' : 'text-stone-600'
                   }`}
                 >
@@ -399,7 +424,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveGuestTab('single')}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
+                  className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
                     activeGuestTab === 'single' ? 'bg-white text-[#882C4E] shadow-2xs' : 'text-stone-600'
                   }`}
                 >
@@ -411,19 +436,24 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
             {/* Bulk Import Box */}
             {activeGuestTab === 'bulk' ? (
               <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-200/80 space-y-3">
-                <label className="block text-[11px] font-semibold text-stone-700">
-                  Cole os nomes dos convidados abaixo (um nome ou família por linha):
-                </label>
+                <div>
+                  <label className="block text-[11px] font-semibold text-stone-700">
+                    Cole os nomes dos convidados abaixo (um por linha):
+                  </label>
+                  <p className="text-[10px] text-stone-500">
+                    Dica: Você pode colar apenas os nomes, ou no formato "Nome, Telefone" (ex: Carlos Alberto, (11) 98765-4321).
+                  </p>
+                </div>
                 <textarea
                   rows={4}
                   value={bulkText}
                   onChange={(e) => setBulkText(e.target.value)}
-                  placeholder="Carlos Alberto Ferreira & Família&#10;Fernanda Lima & Convidado&#10;Marcelo Ribeiro&#10;Mariana Souza"
+                  placeholder="Carlos Alberto Ferreira, (11) 98765-4321&#10;Fernanda Lima & Convidado&#10;Marcelo Ribeiro, (11) 99123-4567&#10;Mariana Souza"
                   className="w-full p-3 bg-white border border-stone-200 rounded-xl text-xs font-mono focus:outline-none"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-xs text-stone-600">
-                    <span>Acompanhantes permitidos por convite:</span>
+                    <span>Acompanhantes por convite:</span>
                     <input
                       type="number"
                       min="0"
@@ -439,17 +469,17 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                     className="px-4 py-2 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer flex items-center gap-1.5"
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Adicionar Todos à Lista</span>
+                    <span>Adicionar à Lista</span>
                   </button>
                 </div>
               </div>
             ) : (
               /* Single Add Box */
               <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block text-[11px] font-semibold text-stone-700 mb-1">
-                      Nome do Convidado / Família
+                      Nome do Convidado / Família *
                     </label>
                     <input
                       type="text"
@@ -461,8 +491,22 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                   </div>
 
                   <div>
+                    <label className="block text-[11px] font-semibold text-stone-700 mb-1 flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-[#882C4E]" />
+                      <span>Telefone (Opcional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={singlePhone}
+                      onChange={(e) => setSinglePhone(formatPhone(e.target.value))}
+                      placeholder="(11) 98765-4321"
+                      className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-[11px] font-semibold text-stone-700 mb-1">
-                      Acompanhantes permitidos
+                      Acompanhantes
                     </label>
                     <input
                       type="number"
@@ -475,7 +519,22 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                   </div>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-stone-600 text-[11px]">Categoria:</span>
+                    <select
+                      value={singleCategory}
+                      onChange={(e) => setSingleCategory(e.target.value as any)}
+                      className="px-2 py-1 bg-white border border-stone-200 rounded-lg text-xs"
+                    >
+                      <option value="Família">Família</option>
+                      <option value="Padrinhos">Padrinhos</option>
+                      <option value="Amigos">Amigos</option>
+                      <option value="Trabalho">Trabalho</option>
+                      <option value="Geral">Geral</option>
+                    </select>
+                  </div>
+
                   <button
                     type="button"
                     onClick={handleAddSingleGuest}
@@ -489,21 +548,26 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
             )}
 
             {/* Added Guests Preview List */}
-            {guests.length > 0 && (
-              <div className="mt-3 p-3 bg-white rounded-2xl border border-stone-200 max-h-48 overflow-y-auto space-y-1.5">
+            {guests.length > 0 ? (
+              <div className="mt-3 p-3 bg-white rounded-2xl border border-stone-200 max-h-52 overflow-y-auto space-y-1.5">
                 <div className="text-[10px] uppercase font-bold text-stone-500 tracking-wider mb-1 flex items-center justify-between">
-                  <span>Convidados Cadastrados para este evento:</span>
-                  <span className="text-[#882C4E]">{guests.length} nomes</span>
+                  <span>Convidados adicionados para este evento:</span>
+                  <span className="text-[#882C4E] font-bold">{guests.length} convidados</span>
                 </div>
                 {guests.map((g, idx) => (
                   <div
                     key={g.id || idx}
                     className="p-2 bg-stone-50 hover:bg-stone-100/70 rounded-xl border border-stone-200/60 flex items-center justify-between text-xs"
                   >
-                    <div>
+                    <div className="flex items-center gap-2">
                       <span className="font-semibold text-stone-800">{g.name}</span>
-                      <span className="text-[10px] text-stone-500 ml-2">
-                        ({g.maxCompanions > 0 ? `Até ${g.maxCompanions + 1} pessoas` : 'Individual'})
+                      {g.phone && (
+                        <span className="px-2 py-0.5 bg-rose-50 text-[#882C4E] border border-rose-200 rounded text-[10px]">
+                          📱 {g.phone}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-stone-500">
+                        ({g.maxCompanions > 0 ? `Até ${g.maxCompanions + 1} pax` : 'Individual'})
                       </span>
                     </div>
                     <button
@@ -516,6 +580,10 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                     </button>
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="mt-2 p-3 bg-stone-50 rounded-xl border border-dashed border-stone-200 text-center text-xs text-stone-500">
+                Nenhum convidado adicionado ainda. Adicione acima para que os convidados consigam confirmar presença.
               </div>
             )}
           </div>
@@ -563,9 +631,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
 
             <button
               type="submit"
-              className="px-6 py-2.5 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+              className="px-6 py-2.5 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer flex items-center gap-2"
             >
-              Salvar Evento {guests.length > 0 && `(${guests.length} convidados)`}
+              <CheckCircle2 className="w-4 h-4" />
+              <span>
+                {initialEvent ? 'Salvar Alterações' : 'Criar Evento'} {guests.length > 0 && `com ${guests.length} convidados`}
+              </span>
             </button>
           </div>
         </form>

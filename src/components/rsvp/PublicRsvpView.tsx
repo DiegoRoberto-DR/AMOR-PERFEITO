@@ -7,7 +7,7 @@ import {
   Heart, Calendar, Clock, MapPin, Search, CheckCircle2, 
   XCircle, Utensils, MessageSquare, Sparkles, AlertCircle, 
   ArrowLeft, ExternalLink, ShieldCheck, UserCheck, RefreshCw,
-  PartyPopper, ChevronDown, Phone
+  PartyPopper, Phone, Lock, HelpCircle
 } from 'lucide-react';
 
 interface PublicRsvpViewProps {
@@ -37,8 +37,9 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
   const [companionNames, setCompanionNames] = useState<string[]>([]);
   const [dietaryRestrictions, setDietaryRestrictions] = useState('');
   const [message, setMessage] = useState('');
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
+
+  // Countdown timer state
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number } | null>(null);
 
   const formatPhoneInput = (val: string) => {
     const digits = val.replace(/\D/g, '').slice(0, 11);
@@ -46,6 +47,24 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
     if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+  };
+
+  // Helper to prefill form or select guest
+  const selectGuestForRsvp = (guest: Guest) => {
+    setSelectedGuest(guest);
+    setSearchQuery(guest.name);
+    setGuestPhone(guest.phone || '');
+    setPhoneError('');
+
+    // If guest is still pending, initialize form defaults
+    if (guest.status === 'pending') {
+      setAttendance('yes');
+      const defaultPax = guest.maxCompanions > 0 ? (guest.maxCompanions + 1) : 1;
+      setConfirmedCount(defaultPax);
+      setCompanionNames([guest.name]);
+      setDietaryRestrictions('');
+      setMessage('');
+    }
   };
 
   const handlePerformSearch = (e?: React.FormEvent) => {
@@ -69,45 +88,9 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     setMatchedGuests(found);
 
     if (found.length === 1) {
-      populateFormWithGuest(found[0]);
+      selectGuestForRsvp(found[0]);
     } else if (found.length === 0) {
       setSelectedGuest(null);
-    }
-  };
-
-  // Countdown timer state
-  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number } | null>(null);
-
-  // Helper to prefill form for a guest
-  const populateFormWithGuest = (guest: Guest) => {
-    setSelectedGuest(guest);
-    setSearchQuery(guest.name);
-    setGuestPhone(guest.phone || '');
-    setPhoneError('');
-
-    if (guest.status === 'confirmed') {
-      setAttendance('yes');
-      setConfirmedCount(guest.confirmedCount || 1);
-      setCompanionNames(guest.companionNames && guest.companionNames.length > 0 ? guest.companionNames : [guest.name]);
-      setDietaryRestrictions(guest.dietaryRestrictions || '');
-      setMessage(guest.message || '');
-      setIsSubmitted(true);
-      setSubmissionSuccess(true);
-    } else if (guest.status === 'declined') {
-      setAttendance('no');
-      setMessage(guest.message || '');
-      setIsSubmitted(true);
-      setSubmissionSuccess(true);
-    } else {
-      // Pending
-      setAttendance('yes');
-      const defaultPax = guest.maxCompanions > 0 ? (guest.maxCompanions + 1) : 1;
-      setConfirmedCount(defaultPax);
-      setCompanionNames([guest.name]);
-      setDietaryRestrictions('');
-      setMessage('');
-      setIsSubmitted(false);
-      setSubmissionSuccess(false);
     }
   };
 
@@ -151,7 +134,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
         if (targetGuestId) {
           const matchedGuest = currentEvent.guests.find(g => g.id === targetGuestId);
           if (matchedGuest) {
-            populateFormWithGuest(matchedGuest);
+            selectGuestForRsvp(matchedGuest);
           }
         }
       }
@@ -204,11 +187,6 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     return () => clearInterval(interval);
   }, [event]);
 
-  // Guest selection
-  const handleSelectGuest = (guest: Guest) => {
-    populateFormWithGuest(guest);
-  };
-
   const handleAttendanceChange = (val: 'yes' | 'no') => {
     setAttendance(val);
   };
@@ -235,6 +213,12 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!event || !selectedGuest) return;
+
+    // Protection: If already confirmed or declined, do not allow submission
+    if (selectedGuest.status === 'confirmed' || selectedGuest.status === 'declined') {
+      alert('Sua resposta já foi registrada anteriormente e não pode mais ser alterada.');
+      return;
+    }
 
     // MANDATORY PHONE VALIDATION
     const cleanPhone = guestPhone.replace(/\D/g, '');
@@ -270,30 +254,23 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
 
     const updatedEvent = { ...event, guests: updatedGuests };
     setEvent(updatedEvent);
-    setSelectedGuest({ ...selectedGuest, ...updatedGuestData });
+    
+    // Set selectedGuest to the updated guest so the view immediately switches to locked mode
+    const updatedTargetGuest: Guest = { ...selectedGuest, ...updatedGuestData };
+    setSelectedGuest(updatedTargetGuest);
 
     // Trigger celebration
     if (isYes) {
       confetti({
-        particleCount: 110,
-        spread: 80,
+        particleCount: 120,
+        spread: 85,
         origin: { y: 0.6 },
         colors: ['#882C4E', '#B85C7D', '#D4AF37', '#FAD02C', '#E8A598'],
       });
     }
 
-    setIsSubmitted(true);
-    setSubmissionSuccess(true);
     setIsSubmitting(false);
   };
-
-  // Accent-insensitive matching
-  const matchingGuests = (event?.guests || []).filter(g => {
-    if (!searchQuery.trim()) return false;
-    const normGuest = normalizeText(g.name);
-    const normQuery = normalizeText(searchQuery);
-    return normGuest.includes(normQuery);
-  });
 
   if (!event) {
     return (
@@ -318,6 +295,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
   }
 
   const maxAllowedPeople = (selectedGuest?.maxCompanions || 0) + 1;
+  const isGuestLocked = selectedGuest && (selectedGuest.status === 'confirmed' || selectedGuest.status === 'declined');
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-stone-800 selection:bg-rose-200">
@@ -451,7 +429,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
             </p>
           </div>
 
-          {/* Step 1: Search Name in the Registered Guest List (STRICT PRIVACY: NO OPEN LIST OF NAMES) */}
+          {/* Step 1: Search Name in the Registered Guest List (PRIVACY PROTECTED) */}
           <div className="space-y-4">
             <form onSubmit={handlePerformSearch} className="space-y-2">
               <label className="block text-xs font-bold uppercase tracking-wider text-stone-700">
@@ -472,8 +450,6 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                       setSearchFeedback('');
                       if (selectedGuest && normalizeText(e.target.value) !== normalizeText(selectedGuest.name)) {
                         setSelectedGuest(null);
-                        setIsSubmitted(false);
-                        setSubmissionSuccess(false);
                       }
                     }}
                     placeholder="Ex: Carlos Alberto Ferreira..."
@@ -506,40 +482,167 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
               </div>
             )}
 
-            {/* If searched and MULTIPLE matches (e.g. guests with identical or similar names) */}
+            {/* If searched and MULTIPLE matches */}
             {hasSearched && matchedGuests.length > 1 && !selectedGuest && (
               <div className="space-y-2 p-4 bg-stone-50 border border-stone-200 rounded-2xl">
                 <p className="text-xs font-bold text-stone-800">
                   Encontramos {matchedGuests.length} convites com este nome. Por favor, identifique qual é o seu convite:
                 </p>
                 <div className="space-y-2">
-                  {matchedGuests.map(guest => (
-                    <div
-                      key={guest.id}
-                      className="p-3 bg-white rounded-xl border border-stone-200/80 flex items-center justify-between gap-3 shadow-2xs"
-                    >
-                      <div>
-                        <div className="font-bold text-stone-900 text-xs">{guest.name}</div>
-                        <div className="text-[10px] text-stone-500 mt-0.5">
-                          {guest.maxCompanions > 0 ? `Convite para até ${guest.maxCompanions + 1} pessoas` : 'Convite individual'}
-                          {guest.tableNumber && ` • ${guest.tableNumber}`}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => populateFormWithGuest(guest)}
-                        className="px-3 py-1.5 bg-[#882C4E] hover:bg-[#732240] text-white rounded-lg text-xs font-bold cursor-pointer transition shrink-0"
+                  {matchedGuests.map(guest => {
+                    const isAlreadyAnswered = guest.status === 'confirmed' || guest.status === 'declined';
+                    return (
+                      <div
+                        key={guest.id}
+                        className="p-3 bg-white rounded-xl border border-stone-200/80 flex items-center justify-between gap-3 shadow-2xs"
                       >
-                        Este é o Meu Convite
-                      </button>
-                    </div>
-                  ))}
+                        <div>
+                          <div className="font-bold text-stone-900 text-xs flex items-center gap-2">
+                            <span>{guest.name}</span>
+                            {guest.status === 'confirmed' && (
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-semibold">
+                                Já confirmado
+                              </span>
+                            )}
+                            {guest.status === 'declined' && (
+                              <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded-md text-[10px] font-semibold">
+                                Já informou que não vai
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-stone-500 mt-0.5">
+                            {guest.maxCompanions > 0 ? `Convite para até ${guest.maxCompanions + 1} pessoas` : 'Convite individual'}
+                            {guest.phone && ` • Telefone: ***${guest.phone.slice(-4)}`}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => selectGuestForRsvp(guest)}
+                          className="px-3 py-1.5 bg-[#882C4E] hover:bg-[#732240] text-white rounded-lg text-xs font-bold cursor-pointer transition shrink-0"
+                        >
+                          {isAlreadyAnswered ? 'Ver Resposta' : 'Este é o Meu Convite'}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {/* Selected Guest Card & Confirmation Form */}
-            {selectedGuest && (
+            {/* ============================================================ */}
+            {/* CASE A: GUEST ALREADY CONFIRMED OR DECLINED -> LOCKED VIEW   */}
+            {/* CANNOT CONFIRM AGAIN, CANNOT ALTER, ONLY ADMIN CAN CHANGE    */}
+            {/* ============================================================ */}
+            {selectedGuest && isGuestLocked && (
+              <div className="pt-6 border-t border-stone-100 space-y-6">
+                {/* Locked Header Banner */}
+                <div className="p-6 rounded-3xl bg-gradient-to-br from-stone-50 via-rose-50/40 to-stone-100 border-2 border-rose-200/90 text-stone-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-rose-200/60">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                        selectedGuest.status === 'confirmed' 
+                          ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/10'
+                          : 'bg-stone-600 text-white shadow-md'
+                      }`}>
+                        {selectedGuest.status === 'confirmed' ? (
+                          <CheckCircle2 className="w-7 h-7" />
+                        ) : (
+                          <XCircle className="w-7 h-7" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-[#882C4E]">
+                          Convite Localizado
+                        </div>
+                        <h3 className="text-lg font-bold text-stone-900">{selectedGuest.name}</h3>
+                      </div>
+                    </div>
+
+                    <div>
+                      {selectedGuest.status === 'confirmed' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-300">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Presença Confirmada ({selectedGuest.confirmedCount || 1} pessoa{selectedGuest.confirmedCount === 1 ? '' : 's'})</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-stone-200 text-stone-800 rounded-xl text-xs font-bold border border-stone-300">
+                          <XCircle className="w-4 h-4" />
+                          <span>Não comparecerá</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Registered Details */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white/80 p-4 rounded-2xl border border-rose-100">
+                    <div>
+                      <span className="font-semibold text-stone-500 block text-[10px] uppercase">Telefone Identificador</span>
+                      <span className="font-bold text-stone-800">{selectedGuest.phone || 'Cadastrado'}</span>
+                    </div>
+
+                    <div>
+                      <span className="font-semibold text-stone-500 block text-[10px] uppercase">Data do Registro</span>
+                      <span className="font-bold text-stone-800">{selectedGuest.confirmedAt || 'Registrado no sistema'}</span>
+                    </div>
+
+                    {selectedGuest.status === 'confirmed' && selectedGuest.companionNames && selectedGuest.companionNames.length > 0 && (
+                      <div className="sm:col-span-2">
+                        <span className="font-semibold text-stone-500 block text-[10px] uppercase">Nomes na Lista de Entrada</span>
+                        <span className="font-bold text-[#882C4E]">{selectedGuest.companionNames.join(', ')}</span>
+                      </div>
+                    )}
+
+                    {selectedGuest.status === 'confirmed' && selectedGuest.dietaryRestrictions && (
+                      <div className="sm:col-span-2">
+                        <span className="font-semibold text-stone-500 block text-[10px] uppercase">Restrições Alimentares</span>
+                        <span className="text-stone-700">{selectedGuest.dietaryRestrictions}</span>
+                      </div>
+                    )}
+
+                    {selectedGuest.message && (
+                      <div className="sm:col-span-2">
+                        <span className="font-semibold text-stone-500 block text-[10px] uppercase">Mensagem aos Anfitriões</span>
+                        <span className="text-stone-700 italic">"{selectedGuest.message}"</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* MANDATORY REQUIREMENT: Clear notice that response cannot be altered by guest */}
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1.5">
+                    <div className="flex items-center gap-2 font-bold text-amber-800">
+                      <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>Confirmação Finalizada e Bloqueada para Alterações</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-amber-800/90">
+                      Por motivos de segurança e organização do cerimonial, após a confirmação ou recusa ter sido registrada, <b>não é mais possível alterar a resposta pelo site</b>.
+                    </p>
+                    <p className="text-[11px] font-semibold text-amber-950">
+                      Caso necessite de qualquer retificação ou inclusão, entre em contato diretamente com os anfitriões ou com o <b>Cerimonial Amor Perfeito</b>. Apenas o Administrador pode efetuar alterações manualmente.
+                    </p>
+                  </div>
+
+                  {/* Search another name button */}
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedGuest(null);
+                        setSearchQuery('');
+                        setHasSearched(false);
+                      }}
+                      className="px-4 py-2 bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 rounded-xl text-xs font-semibold cursor-pointer transition shadow-2xs"
+                    >
+                      Consultar outro convite
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ============================================================ */}
+            {/* CASE B: GUEST IS PENDING -> RENDER FORM TO CONFIRM PRESENCE   */}
+            {/* ============================================================ */}
+            {selectedGuest && !isGuestLocked && (
               <div className="pt-6 border-t border-stone-100 space-y-6">
                 {/* Guest Identity Banner */}
                 <div className="p-4 rounded-2xl bg-rose-50/80 border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -554,21 +657,12 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {selectedGuest.status === 'confirmed' && (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold shrink-0">
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Presença Confirmada ({selectedGuest.confirmedCount} pax)</span>
-                      </span>
-                    )}
-
+                  <div>
                     <button
                       type="button"
                       onClick={() => {
                         setSelectedGuest(null);
                         setSearchQuery('');
-                        setIsSubmitted(false);
-                        setSubmissionSuccess(false);
                       }}
                       className="text-xs text-stone-500 hover:text-stone-800 underline cursor-pointer"
                     >
@@ -577,7 +671,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                   </div>
                 </div>
 
-                {/* Form to submit or edit attendance */}
+                {/* Form to submit attendance */}
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Step 2: Attendance Choice */}
                   <div>
@@ -629,7 +723,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Step 3: Mandatory Phone Number Field (Differentiator for guests with same name) */}
+                  {/* Step 3: Mandatory Phone Number Field */}
                   <div className="p-4 bg-rose-50/70 rounded-2xl border border-rose-200">
                     <label className="block text-xs font-bold uppercase tracking-wider text-stone-800 mb-1 flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
@@ -742,6 +836,14 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                     />
                   </div>
 
+                  {/* Information banner before submitting */}
+                  <div className="p-3 bg-stone-100 rounded-xl text-[11px] text-stone-600 flex items-center gap-2">
+                    <Lock className="w-3.5 h-3.5 text-stone-500 shrink-0" />
+                    <span>
+                      Atenção: após clicar em confirmar ou enviar, sua resposta será gravada em definitivo e não poderá ser alterada por esta página.
+                    </span>
+                  </div>
+
                   {/* Submit Button */}
                   <button
                     type="submit"
@@ -754,26 +856,11 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                       <>
                         <CheckCircle2 className="w-5 h-5 text-rose-200" />
                         <span>
-                          {attendance === 'yes' ? 'Confirmar Presença Agora' : 'Registrar Resposta'}
+                          {attendance === 'yes' ? 'Confirmar Presença Agora (Finalizar)' : 'Registrar Não Comparecimento (Finalizar)'}
                         </span>
                       </>
                     )}
                   </button>
-
-                  {/* Confirmation Success Alert */}
-                  {submissionSuccess && (
-                    <div className="p-5 bg-emerald-50 border-2 border-emerald-300 rounded-2xl text-emerald-900 text-center space-y-2 animate-in fade-in">
-                      <div className="flex items-center justify-center gap-2 font-bold text-base text-emerald-800">
-                        <PartyPopper className="w-5 h-5 text-emerald-600" />
-                        <span>Presença Registrada com Sucesso!</span>
-                      </div>
-                      <p className="text-xs text-emerald-700">
-                        {attendance === 'yes'
-                          ? `Tudo pronto! Seu nome e de seus ${confirmedCount} acompanhante(s) constam confirmados na lista do Cerimonial Amor Perfeito.`
-                          : 'Sua resposta foi registrada. Os anfitriões agradecem o aviso carinhoso!'}
-                      </p>
-                    </div>
-                  )}
                 </form>
               </div>
             )}
