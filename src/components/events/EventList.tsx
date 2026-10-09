@@ -4,7 +4,7 @@ import { formatDate, generateGuestListPDF } from '../../utils/pdfGenerator';
 import { Storage } from '../../utils/storage';
 import { 
   Plus, Users, Share2, Calendar, MapPin, Clock, Edit2, 
-  Trash2, CheckCircle2, XCircle, AlertCircle, Sparkles, ExternalLink, FileText 
+  Trash2, CheckCircle2, XCircle, AlertCircle, Sparkles, ExternalLink, FileText, Download 
 } from 'lucide-react';
 
 interface EventListProps {
@@ -40,7 +40,7 @@ export const EventList: React.FC<EventListProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-stone-900">
-            Eventos & Listas de Confirmação (RSVP)
+            Eventos & Confirmação de Presença
           </h1>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
             Cadastre os eventos, monte a lista com os nomes dos convidados e gere o link exclusivo para colocar no convite.
@@ -214,10 +214,10 @@ export const EventList: React.FC<EventListProps> = ({
                         generateGuestListPDF(event, settings);
                       }}
                       className="inline-flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-rose-50 text-[#882C4E] rounded-xl text-xs font-semibold transition cursor-pointer"
-                      title="Baixar lista em PDF para controle na portaria e recepção do evento"
+                      title="Baixar lista em PDF para controle e recepção do evento"
                     >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>PDF Portaria</span>
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Baixar PDF</span>
                     </button>
                   </div>
 

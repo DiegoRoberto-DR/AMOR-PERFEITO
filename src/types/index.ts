@@ -8,6 +8,17 @@ export interface BudgetItem {
   total: number;
 }
 
+export interface ServicePackage {
+  id: string;
+  name: string;
+  category: 'Cerimonial' | 'Assessoria' | 'Decoração' | 'Coordenação' | 'Música' | 'Outros';
+  description: string;
+  price: number;
+  itemsIncluded?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type BudgetStatus = 'Rascunho' | 'Enviado' | 'Aprovado' | 'Fechado' | 'Cancelado';
 
 export interface Budget {
@@ -26,6 +37,10 @@ export interface Budget {
   total: number;
   paymentTerms: string;
   validUntil: string;
+  creatorName?: string; // Nome de quem está fazendo o orçamento
+  autoDeleteOnExpiry?: boolean; // Se deve ser excluído automaticamente ao vencer a validade
+  validityDays?: number; // Ex: 7 dias
+  expiresAt?: string; // Data e hora limite para auto-exclusão
   notes: string;
   status: BudgetStatus;
   createdAt: string;

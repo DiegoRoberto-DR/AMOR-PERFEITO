@@ -74,6 +74,9 @@ export const generateBudgetPDF = (budget: Budget, settings: CerimonialSettings) 
   doc.setTextColor(120, 113, 108);
   doc.text(`Emissão: ${formatDate(budget.createdAt)}`, pageWidth - margin - 6, 35, { align: 'right' });
   doc.text(`Validade: ${formatDate(budget.validUntil)}`, pageWidth - margin - 6, 40, { align: 'right' });
+  if (budget.creatorName) {
+    doc.text(`Elaborado por: ${budget.creatorName}`, pageWidth - margin - 6, 45, { align: 'right' });
+  }
 
   y = 52;
 

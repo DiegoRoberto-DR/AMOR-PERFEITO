@@ -3,7 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { INITIAL_EVENTS, INITIAL_BUDGETS, DEFAULT_SETTINGS } from './src/utils/storage.ts';
+import { INITIAL_EVENTS, INITIAL_BUDGETS, DEFAULT_SETTINGS, DEFAULT_SERVICE_PACKAGES } from './src/utils/storage.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +36,7 @@ if (!fs.existsSync(DATA_DIR)) {
 interface DBData {
   settings: any;
   budgets: any[];
+  packages?: any[];
   events: any[];
 }
 
@@ -48,6 +49,9 @@ function loadDB(): DBData {
       parsed.events = (parsed.events || []).filter(
         (e: any) => e.slug !== 'casamento-amanda-guilherme' && e.id !== 'event-1' && e.id !== 'event-2'
       );
+      if (!parsed.packages || parsed.packages.length === 0) {
+        parsed.packages = DEFAULT_SERVICE_PACKAGES;
+      }
       return parsed;
     }
   } catch (err) {
@@ -57,6 +61,7 @@ function loadDB(): DBData {
   const defaultData: DBData = {
     settings: DEFAULT_SETTINGS,
     budgets: INITIAL_BUDGETS,
+    packages: DEFAULT_SERVICE_PACKAGES,
     events: [],
   };
   saveDB(defaultData);
@@ -84,8 +89,55 @@ app.post('/api/settings', (req, res) => {
   res.json(db.settings);
 });
 
+// Packages routes
+app.get('/api/packages', (req, res) => {
+  const db = loadDB();
+  res.json(db.packages || DEFAULT_SERVICE_PACKAGES);
+});
+
+app.post('/api/packages', (req, res) => {
+  const db = loadDB();
+  const body = req.body;
+  if (Array.isArray(body)) {
+    db.packages = body;
+  } else {
+    const list = db.packages || [];
+    const idx = list.findIndex((p: any) => p.id === body.id);
+    if (idx >= 0) {
+      list[idx] = body;
+    } else {
+      list.unshift(body);
+    }
+    db.packages = list;
+  }
+  saveDB(db);
+  res.json(db.packages);
+});
+
+app.delete('/api/packages/:id', (req, res) => {
+  const db = loadDB();
+  db.packages = (db.packages || []).filter((p: any) => p.id !== req.params.id);
+  saveDB(db);
+  res.json({ success: true });
+});
+
 app.get('/api/budgets', (req, res) => {
   const db = loadDB();
+  const now = Date.now();
+  const originalLen = db.budgets.length;
+  // Auto-delete expired budgets
+  db.budgets = (db.budgets || []).filter((b: any) => {
+    if (b.autoDeleteOnExpiry && b.expiresAt) {
+      const exp = new Date(b.expiresAt).getTime();
+      if (!isNaN(exp) && exp <= now) {
+        return false;
+      }
+    }
+    return true;
+  });
+  if (db.budgets.length !== originalLen) {
+    saveDB(db);
+  }
   res.json(db.budgets);
 });
 

@@ -63,7 +63,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, isStanda
           <div className="mb-6 text-center">
             <h2 className="text-lg font-semibold text-stone-800">Painel Administrativo</h2>
             <p className="text-xs text-stone-500 mt-0.5">
-              Entre com suas credenciais para gerenciar orçamentos e listas de RSVP
+              Entre com suas credenciais para gerenciar orçamentos e listas de confirmação
             </p>
           </div>
 

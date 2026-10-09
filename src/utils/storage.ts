@@ -1,4 +1,57 @@
-import { Budget, EventRsvp, CerimonialSettings, Guest } from '../types';
+import { Budget, EventRsvp, CerimonialSettings, Guest, ServicePackage } from '../types';
+
+export const DEFAULT_SERVICE_PACKAGES: ServicePackage[] = [
+  {
+    id: 'pkg-1',
+    name: 'Assessoria Completa e Cerimonial do Dia',
+    category: 'Assessoria',
+    description: 'Gestão integral do evento do início ao fim: alinhamento com fornecedores, visitas técnicas, consultoria de estilo e cerimonial completo no dia.',
+    price: 5800,
+    itemsIncluded: ['Reuniões ilimitadas', 'Visitas técnicas', 'Gestão de fornecedores', 'Equipe completa no dia', 'Kit SOS noiva'],
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+  {
+    id: 'pkg-2',
+    name: 'Cerimonial do Dia (Equipe de 5 Coordenadoras)',
+    category: 'Cerimonial',
+    description: 'Coordenação minuciosa do cortejo, recepção dos noivos e convidados, kit SOS noiva, checagem de buffet e cerimonial de corte de bolo.',
+    price: 3200,
+    itemsIncluded: ['5 coordenadoras dedicadas', 'Ensaio no cortejo', 'Recepção dos convidados', 'Cronograma minuto a minuto'],
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+  {
+    id: 'pkg-3',
+    name: 'Assessoria Final / Reta Final (60 dias antes)',
+    category: 'Assessoria',
+    description: 'Assunção do contato com todos os fornecedores já contratados, montagem de roteiro minuto a minuto e alinhamentos finais.',
+    price: 3900,
+    itemsIncluded: ['Contato com fornecedores contratados', 'Cronograma detalhado', 'Ensaio geral', 'Coordenação no dia'],
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+  {
+    id: 'pkg-4',
+    name: 'Cerimonial de 15 Anos (Valsa e Recepção)',
+    category: 'Cerimonial',
+    description: 'Roteiro de troca de vestidos, valsa dos 15 casais, homenagens aos pais, entrega de joia/anel e abertura de pista.',
+    price: 3500,
+    itemsIncluded: ['Coordenação dos 15 casais', 'Roteiro de homenagens', 'Kit debutante', 'Controle de entrada'],
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+  {
+    id: 'pkg-5',
+    name: 'Gestão de Convidados e Confirmação de Presença',
+    category: 'Outros',
+    description: 'Gestão da lista nominal de convidados, link personalizado para confirmação de presença, contato ativo com faltantes e relatório com mapa de mesas.',
+    price: 900,
+    itemsIncluded: ['Link exclusivo de confirmação', 'Relatório em PDF', 'Controle de acompanhantes', 'Suporte aos convidados'],
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  }
+];
 
 export const DEFAULT_SETTINGS: CerimonialSettings = {
   companyName: 'Cerimonial Amor Perfeito',
@@ -154,17 +207,60 @@ export const Storage = {
     }).catch(() => {});
   },
 
-  getBudgets(): Budget[] {
-    const raw = localStorage.getItem('amor_perfeito_budgets');
+  getPackages(): ServicePackage[] {
+    const raw = localStorage.getItem('amor_perfeito_packages');
     if (!raw) {
-      localStorage.setItem('amor_perfeito_budgets', JSON.stringify(INITIAL_BUDGETS));
-      return INITIAL_BUDGETS;
+      localStorage.setItem('amor_perfeito_packages', JSON.stringify(DEFAULT_SERVICE_PACKAGES));
+      return DEFAULT_SERVICE_PACKAGES;
     }
     try {
       return JSON.parse(raw);
     } catch {
-      return INITIAL_BUDGETS;
+      return DEFAULT_SERVICE_PACKAGES;
     }
+  },
+
+  savePackages(packages: ServicePackage[]): void {
+    localStorage.setItem('amor_perfeito_packages', JSON.stringify(packages));
+    fetch('/api/packages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(packages),
+    }).catch(() => {});
+  },
+
+  cleanExpiredBudgets(): Budget[] {
+    const raw = localStorage.getItem('amor_perfeito_budgets');
+    let list: Budget[] = [];
+    if (!raw) {
+      list = INITIAL_BUDGETS;
+    } else {
+      try {
+        list = JSON.parse(raw);
+      } catch {
+        list = INITIAL_BUDGETS;
+      }
+    }
+    const now = Date.now();
+    const valid = list.filter(b => {
+      if (b.autoDeleteOnExpiry && b.expiresAt) {
+        const expTime = new Date(b.expiresAt).getTime();
+        if (!isNaN(expTime) && expTime <= now) {
+          fetch(`/api/budgets/${b.id}`, { method: 'DELETE' }).catch(() => {});
+          return false;
+        }
+      }
+      return true;
+    });
+
+    if (valid.length !== list.length) {
+      localStorage.setItem('amor_perfeito_budgets', JSON.stringify(valid));
+    }
+    return valid;
+  },
+
+  getBudgets(): Budget[] {
+    return this.cleanExpiredBudgets();
   },
 
   saveBudgets(budgets: Budget[]): void {

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Budget, BudgetItem, BudgetStatus } from '../../types';
-import { X, Plus, Trash2, Sparkles, DollarSign, Calculator } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Budget, BudgetItem, BudgetStatus, ServicePackage } from '../../types';
+import { X, Plus, Trash2, Sparkles, Calculator, AlertTriangle, Package } from 'lucide-react';
 import { formatCurrency } from '../../utils/pdfGenerator';
+import { Storage } from '../../utils/storage';
 
 interface BudgetFormModalProps {
   isOpen: boolean;
@@ -9,51 +10,6 @@ interface BudgetFormModalProps {
   onSave: (budget: Budget) => void;
   initialBudget?: Budget | null;
 }
-
-const SERVICE_TEMPLATES = [
-  {
-    name: 'Assessoria Completa e Cerimonial do Dia',
-    category: 'Assessoria' as const,
-    description: 'Gestão de cronograma, contratação e alinhamento de fornecedores, visitas técnicas, consultoria de estilo e reuniões ilimitadas.',
-    price: 5800,
-  },
-  {
-    name: 'Cerimonial do Dia (Equipe de 5 Coordenadoras)',
-    category: 'Cerimonial' as const,
-    description: 'Coordenação minuciosa do cortejo, recepção dos noivos e convidados, kit SOS noiva, checagem de buffet e cerimonial de corte de bolo.',
-    price: 3200,
-  },
-  {
-    name: 'Assessoria Final / Reta Final (60 dias antes)',
-    category: 'Assessoria' as const,
-    description: 'Assunção do contato com todos os fornecedores já contratados, montagem de roteiro minuto a minuto e alinhamentos finais.',
-    price: 3900,
-  },
-  {
-    name: 'RSVP Ativo e Passivo pelo Cerimonial',
-    category: 'Outros' as const,
-    description: 'Gestão da lista de convidados, link personalizado, contato via WhatsApp com faltantes e relatório com mapa de mesas.',
-    price: 900,
-  },
-  {
-    name: 'Ensaio Geral da Cerimônia com Noivos e Padrinhos',
-    category: 'Coordenação' as const,
-    description: 'Simulação do cortejo nupcial, alinhamento de entradas, posições no altar, daminhas e pajens com música guia.',
-    price: 600,
-  },
-  {
-    name: 'Cerimonial de 15 Anos (Valsa e Recepção)',
-    category: 'Cerimonial' as const,
-    description: 'Roteiro de troca de vestidos, valsa dos 15 casais, homenagens aos pais, entrega de joia/anel e abertura de pista.',
-    price: 3500,
-  },
-  {
-    name: 'Kit SOS Noiva & Assistente Exclusiva',
-    category: 'Cerimonial' as const,
-    description: 'Assistente dedicada exclusivamente aos noivos durante making-of, fotos, retoque de maquiagem e cuidados com o vestido.',
-    price: 500,
-  }
-];
 
 export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
   isOpen,
@@ -63,6 +19,13 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const settings = Storage.getSettings();
+  const [packages, setPackages] = useState<ServicePackage[]>([]);
+
+  useEffect(() => {
+    setPackages(Storage.getPackages());
+  }, [isOpen]);
+
   const [clientName, setClientName] = useState(initialBudget?.clientName || '');
   const [clientPhone, setClientPhone] = useState(initialBudget?.clientPhone || '');
   const [clientEmail, setClientEmail] = useState(initialBudget?.clientEmail || '');
@@ -70,10 +33,28 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
   const [eventDate, setEventDate] = useState(initialBudget?.eventDate || '');
   const [eventLocation, setEventLocation] = useState(initialBudget?.eventLocation || '');
   const [estimatedGuests, setEstimatedGuests] = useState(initialBudget?.estimatedGuests || 150);
-  const [validUntil, setValidUntil] = useState(
-    initialBudget?.validUntil ||
-      new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const [creatorName, setCreatorName] = useState(
+    initialBudget?.creatorName || settings.responsibleName || ''
   );
+
+  // Expiration & Auto-Delete
+  const [autoDeleteOnExpiry, setAutoDeleteOnExpiry] = useState<boolean>(
+    initialBudget?.autoDeleteOnExpiry ?? false
+  );
+  const [validityDays, setValidityDays] = useState<number>(
+    initialBudget?.validityDays || 7
+  );
+
+  const calculateValidUntilDate = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  };
+
+  const [validUntil, setValidUntil] = useState(
+    initialBudget?.validUntil || calculateValidUntilDate(7)
+  );
+
   const [status, setStatus] = useState<BudgetStatus>(initialBudget?.status || 'Rascunho');
   const [paymentTerms, setPaymentTerms] = useState(
     initialBudget?.paymentTerms ||
@@ -87,7 +68,7 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
       {
         id: 'item-1',
         name: 'Assessoria Completa e Cerimonial do Dia',
-        description: 'Gestão integral do evento, cronograma, fornecedores e equipe dedicada.',
+        description: 'Gestão integral do evento, cronograma, alinhamento com fornecedores e equipe dedicada.',
         category: 'Assessoria',
         quantity: 1,
         unitPrice: 5000,
@@ -96,31 +77,30 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
     ]
   );
 
-  const handleAddItem = (templateIndex?: number) => {
-    if (templateIndex !== undefined && SERVICE_TEMPLATES[templateIndex]) {
-      const t = SERVICE_TEMPLATES[templateIndex];
-      const newItem: BudgetItem = {
-        id: `item-${Date.now()}-${Math.random()}`,
-        name: t.name,
-        description: t.description,
-        category: t.category,
-        quantity: 1,
-        unitPrice: t.price,
-        total: t.price,
-      };
-      setItems([...items, newItem]);
-    } else {
-      const newItem: BudgetItem = {
-        id: `item-${Date.now()}`,
-        name: 'Novo Serviço de Cerimonial',
-        description: 'Descrição detalhada do serviço prestado.',
-        category: 'Cerimonial',
-        quantity: 1,
-        unitPrice: 1000,
-        total: 1000,
-      };
-      setItems([...items, newItem]);
-    }
+  const handleAddPackage = (pkg: ServicePackage) => {
+    const newItem: BudgetItem = {
+      id: `item-${Date.now()}-${Math.random()}`,
+      name: pkg.name,
+      description: pkg.description,
+      category: pkg.category,
+      quantity: 1,
+      unitPrice: pkg.price,
+      total: pkg.price,
+    };
+    setItems([...items, newItem]);
+  };
+
+  const handleAddCustomItem = () => {
+    const newItem: BudgetItem = {
+      id: `item-${Date.now()}`,
+      name: 'Novo Serviço de Cerimonial',
+      description: 'Descrição detalhada do serviço prestado.',
+      category: 'Cerimonial',
+      quantity: 1,
+      unitPrice: 1000,
+      total: 1000,
+    };
+    setItems([...items, newItem]);
   };
 
   const handleUpdateItem = (id: string, field: keyof BudgetItem, value: any) => {
@@ -155,10 +135,21 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
       alert('Por favor, informe o nome do cliente.');
       return;
     }
+    if (!creatorName.trim()) {
+      alert('Por favor, informe o nome de quem está fazendo o orçamento.');
+      return;
+    }
 
     const randomCode = Math.floor(100 + Math.random() * 900);
     const year = new Date().getFullYear();
     const code = initialBudget?.code || `AP-${year}-${randomCode}`;
+
+    let expiresAt: string | undefined = undefined;
+    if (autoDeleteOnExpiry) {
+      const now = new Date();
+      now.setDate(now.getDate() + Number(validityDays));
+      expiresAt = now.toISOString();
+    }
 
     const newBudget: Budget = {
       id: initialBudget?.id || `budget-${Date.now()}`,
@@ -170,6 +161,10 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
       eventDate,
       eventLocation: eventLocation.trim(),
       estimatedGuests: Number(estimatedGuests) || 0,
+      creatorName: creatorName.trim(),
+      autoDeleteOnExpiry,
+      validityDays: autoDeleteOnExpiry ? Number(validityDays) : undefined,
+      expiresAt,
       items,
       subtotal,
       discount: Number(discount) || 0,
@@ -196,7 +191,7 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
               {initialBudget ? 'Editar Orçamento' : 'Novo Orçamento de Cerimonial'}
             </h2>
             <p className="text-xs text-rose-100 font-light">
-              Preencha os dados do cliente e os pacotes de assessoria
+              Preencha os dados do cliente, o responsável e os pacotes de serviços
             </p>
           </div>
           <button
@@ -250,21 +245,20 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  WhatsApp do Cliente *
+                  Telefone / WhatsApp do Cliente
                 </label>
                 <input
                   type="text"
-                  required
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
-                  placeholder="Ex: (11) 98765-4321"
+                  placeholder="(11) 98765-4321"
                   className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#882C4E]/30"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  E-mail do Cliente (opcional)
+                  E-mail do Cliente
                 </label>
                 <input
                   type="email"
@@ -313,16 +307,22 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
                 />
               </div>
 
-              <div>
+              {/* Creator Name Field */}
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  Validade da Proposta
+                  Nome de quem está fazendo o orçamento *
                 </label>
                 <input
-                  type="date"
-                  value={validUntil}
-                  onChange={(e) => setValidUntil(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#882C4E]/30"
+                  type="text"
+                  required
+                  value={creatorName}
+                  onChange={(e) => setCreatorName(e.target.value)}
+                  placeholder="Ex: Amanda Cerimonialista / Direção Amor Perfeito"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#882C4E]/30"
                 />
+                <span className="text-[11px] text-stone-400 mt-0.5 block">
+                  Identifica o consultor ou cerimonialista responsável pela proposta.
+                </span>
               </div>
 
               <div>
@@ -343,6 +343,77 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
             </div>
           </div>
 
+          {/* Section: Validade & Auto-Exclusão */}
+          <div className="p-4 bg-amber-50/60 border border-amber-200/80 rounded-2xl space-y-3">
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                id="autoDeleteExpiry"
+                checked={autoDeleteOnExpiry}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setAutoDeleteOnExpiry(checked);
+                  if (checked) {
+                    setValidUntil(calculateValidUntilDate(validityDays));
+                  }
+                }}
+                className="mt-1 w-4 h-4 text-[#882C4E] rounded-md border-stone-300 focus:ring-[#882C4E] cursor-pointer"
+              />
+              <div className="flex-1">
+                <label htmlFor="autoDeleteExpiry" className="text-xs font-bold text-stone-800 cursor-pointer block">
+                  Definir prazo de validade com auto-exclusão automática
+                </label>
+                <p className="text-[11px] text-stone-600 mt-0.5">
+                  Caso ativado, o orçamento será <b>excluído permanentemente do sistema</b> após o término da validade e não terá como recuperar, tendo que ser feito outro.
+                </p>
+              </div>
+            </div>
+
+            {autoDeleteOnExpiry && (
+              <div className="pt-2 border-t border-amber-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in">
+                <div>
+                  <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                    Prazo de Validade (dias):
+                  </label>
+                  <select
+                    value={validityDays}
+                    onChange={(e) => {
+                      const days = Number(e.target.value);
+                      setValidityDays(days);
+                      setValidUntil(calculateValidUntilDate(days));
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#882C4E]/30"
+                  >
+                    <option value={7}>7 dias (Recomendado)</option>
+                    <option value={15}>15 dias</option>
+                    <option value={30}>30 dias</option>
+                    <option value={3}>3 dias (Urgente)</option>
+                    <option value={1}>1 dia (Express)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                    Data Final de Validade:
+                  </label>
+                  <input
+                    type="date"
+                    value={validUntil}
+                    onChange={(e) => setValidUntil(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs font-medium focus:outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 flex items-center gap-1.5 text-[11px] font-medium text-amber-900 bg-amber-100/70 p-2.5 rounded-xl border border-amber-200">
+                  <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>
+                    Após {validityDays} dias, este orçamento será excluído automaticamente e não terá como recuperar.
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Section: Items Table */}
           <div className="pt-2 border-t border-stone-200">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
@@ -351,32 +422,38 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
                   <Calculator className="w-3.5 h-3.5" />
                   <span>Itens & Serviços Inclusos</span>
                 </h3>
-                <p className="text-xs text-stone-500">Adicione os serviços contratados ou use modelos prontos</p>
+                <p className="text-xs text-stone-500">
+                  Insira seus pacotes cadastrados ou crie itens sob medida
+                </p>
               </div>
 
-              {/* Quick Template Picker */}
+              {/* Quick Package Selector */}
               <div className="flex items-center gap-2">
                 <select
                   onChange={(e) => {
-                    if (e.target.value !== '') {
-                      handleAddItem(Number(e.target.value));
+                    const selectedId = e.target.value;
+                    if (selectedId) {
+                      const found = packages.find(p => p.id === selectedId);
+                      if (found) {
+                        handleAddPackage(found);
+                      }
                       e.target.value = '';
                     }
                   }}
                   defaultValue=""
                   className="bg-rose-50 text-[#882C4E] border border-rose-200 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer focus:outline-none"
                 >
-                  <option value="" disabled>+ Adicionar Modelo de Serviço...</option>
-                  {SERVICE_TEMPLATES.map((t, idx) => (
-                    <option key={idx} value={idx}>
-                      {t.name} ({formatCurrency(t.price)})
+                  <option value="" disabled>+ Incluir Pacote Cadastrado...</option>
+                  {packages.map((pkg) => (
+                    <option key={pkg.id} value={pkg.id}>
+                      {pkg.name} ({formatCurrency(pkg.price)})
                     </option>
                   ))}
                 </select>
 
                 <button
                   type="button"
-                  onClick={() => handleAddItem()}
+                  onClick={handleAddCustomItem}
                   className="inline-flex items-center gap-1 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -430,8 +507,8 @@ export const BudgetFormModal: React.FC<BudgetFormModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleRemoveItem(item.id)}
-                      className="p-1.5 text-stone-400 hover:text-rose-600 rounded-lg transition"
-                      title="Remover item"
+                      className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer mt-5"
+                      title="Remover serviço"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

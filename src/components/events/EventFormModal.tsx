@@ -412,7 +412,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  Mensagem de Boas-Vindas aos Convidados (RSVP)
+                  Mensagem de Boas-Vindas aos Convidados
                 </label>
                 <textarea
                   rows={2}
@@ -543,7 +543,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                       <div>
                         <div className="text-xs">Sim (Pode levar acompanhantes)</div>
                         <div className="text-[10px] text-stone-500 font-normal">
-                          Deverá confirmar o nome de cada acompanhante no RSVP
+                          Deverá confirmar o nome de cada acompanhante na confirmação
                         </div>
                       </div>
                     </label>

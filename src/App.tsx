@@ -15,6 +15,7 @@ import { GuestListModal } from './components/events/GuestListModal';
 import { ShareRsvpModal } from './components/events/ShareRsvpModal';
 import { PublicRsvpView } from './components/rsvp/PublicRsvpView';
 import { SettingsView } from './components/settings/SettingsView';
+import { PresenceConfirmationsView } from './components/confirmations/PresenceConfirmationsView';
 
 export default function App() {
   // Navigation & Auth state
@@ -342,6 +343,13 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'confirmations' && (
+          <PresenceConfirmationsView
+            events={events}
+            onUpdateEventGuests={handleUpdateEventGuests}
+          />
+        )}
+
         {activeTab === 'settings' && (
           <SettingsView
             settings={settings}
@@ -356,7 +364,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="font-serif font-bold text-[#882C4E]">Cerimonial Amor Perfeito</span>
             <span>•</span>
-            <span>Sistema Integrado de Orçamentos & RSVP</span>
+            <span>Sistema Integrado de Orçamentos & Confirmação de Presença</span>
           </div>
           <div className="text-stone-400">
             {settings.phone} • {settings.instagram} • {settings.address}

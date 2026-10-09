@@ -6,7 +6,7 @@ import { Storage, normalizeText } from '../../utils/storage';
 import { decodeEventFromUrl } from '../../utils/urlSync';
 import { 
   Heart, Calendar, Clock, MapPin, Search, CheckCircle2, 
-  XCircle, Utensils, MessageSquare, Sparkles, AlertCircle, 
+  XCircle, MessageSquare, Sparkles, AlertCircle, 
   ArrowLeft, ExternalLink, ShieldCheck, RefreshCw,
   Phone, Lock, User, Users, MessageCircle
 } from 'lucide-react';
@@ -37,7 +37,6 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
   const [companionError, setCompanionError] = useState('');
   const [confirmedCount, setConfirmedCount] = useState<number>(1);
   const [companionNames, setCompanionNames] = useState<string[]>([]);
-  const [dietaryRestrictions, setDietaryRestrictions] = useState('');
   const [message, setMessage] = useState('');
 
   // Countdown timer state
@@ -65,7 +64,6 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
       // If allowed companions > 0, default to 1 or max
       setConfirmedCount(1);
       setCompanionNames([guest.name]);
-      setDietaryRestrictions('');
       setMessage('');
     }
   };
@@ -328,7 +326,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
       phone: guestPhone.trim(),
       confirmedCount: finalCount,
       companionNames: finalNames,
-      dietaryRestrictions: isYes ? dietaryRestrictions.trim() : '',
+      dietaryRestrictions: '',
       message: message.trim(),
       confirmedAt: new Date().toLocaleString('pt-BR'),
     };
@@ -361,20 +359,29 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     setIsSubmitting(false);
   };
 
-  const handleNotifyCerimonialWhatsApp = () => {
-    if (!event || !selectedGuest) return;
+  const getCerimonialWhatsAppUrl = () => {
     const settings = Storage.getSettings();
-    const isYes = selectedGuest.status === 'confirmed';
-    const pax = selectedGuest.confirmedCount || 1;
-    const names = selectedGuest.companionNames?.join(', ') || selectedGuest.name;
+    let phoneClean = (settings.whatsapp || settings.phone || '5511987654321').replace(/\D/g, '');
+    if (phoneClean.length === 10 || phoneClean.length === 11) {
+      phoneClean = `55${phoneClean}`;
+    }
     
-    const text = isYes
-      ? `Olá! Confirmei minha presença no evento *${event.title}* através do link oficial de RSVP!\n\n👤 *Titular:* ${selectedGuest.name}\n📱 *Telefone:* ${selectedGuest.phone || ''}\n🥂 *Presença:* Confirmada (${pax} pessoa${pax > 1 ? 's' : ''})\n👥 *Nomes:* ${names}${selectedGuest.dietaryRestrictions ? `\n🥗 *Restrições:* ${selectedGuest.dietaryRestrictions}` : ''}${selectedGuest.message ? `\n💌 *Mensagem:* "${selectedGuest.message}"` : ''}`
-      : `Olá! Registrei minha resposta no evento *${event.title}* informando que infelizmente não poderei comparecer.\n\n👤 *Nome:* ${selectedGuest.name}\n💌 *Mensagem:* "${selectedGuest.message || 'Desejo muitas felicidades!'}"`;
+    let text = `Olá! Tenho dúvidas sobre o evento *${event?.title || 'do cerimonial'}*.`;
+    if (selectedGuest) {
+      text += `\n\n👤 *Convidado:* ${selectedGuest.name}`;
+      if (selectedGuest.status === 'confirmed') {
+        const pax = selectedGuest.confirmedCount || 1;
+        text += `\n🥂 *Status atual:* Presença confirmada (${pax} pessoa${pax > 1 ? 's' : ''})`;
+      } else if (selectedGuest.status === 'declined') {
+        text += `\n❌ *Status atual:* Resposta registrada como não comparece`;
+      }
+    }
+    return `https://wa.me/${phoneClean}?text=${encodeURIComponent(text)}`;
+  };
 
-    const phoneClean = (settings.whatsapp || settings.phone || '').replace(/\D/g, '');
-    const url = `https://wa.me/${phoneClean}?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+  const handleOpenCerimonialWhatsApp = () => {
+    const url = getCerimonialWhatsAppUrl();
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   if (loadError || !event) {
@@ -414,7 +421,7 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
         <div className="bg-[#882C4E] text-white py-2 px-4 text-xs flex items-center justify-between sticky top-0 z-50 shadow-sm">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-rose-300" />
-            <span>Página Oficial de Confirmação do Convidado (RSVP)</span>
+            <span>Página Oficial de Confirmação de Presença</span>
           </div>
           <button
             onClick={onBackToAdmin}
@@ -596,11 +603,22 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
 
             {/* If searched and NOT found */}
             {hasSearched && matchedGuests.length === 0 && (
-              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 text-center space-y-1">
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 text-center space-y-2">
                 <p className="font-bold">Nome não localizado na lista oficial de convidados deste evento.</p>
                 <p className="text-[11px] text-rose-600">
-                  Verifique se você digitou seu nome completo conforme consta no convite ou entre em contato com os anfitriões / Cerimonial Amor Perfeito.
+                  Verifique se você digitou seu nome completo conforme consta no convite ou entre em contato com o Cerimonial Amor Perfeito.
                 </p>
+                <div className="pt-1">
+                  <a
+                    href={getCerimonialWhatsAppUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-2xs transition"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Dúvidas</span>
+                  </a>
+                </div>
               </div>
             )}
 
@@ -722,13 +740,6 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                       </div>
                     )}
 
-                    {selectedGuest.status === 'confirmed' && selectedGuest.dietaryRestrictions && (
-                      <div className="sm:col-span-2">
-                        <span className="font-semibold text-stone-500 block text-[10px] uppercase">Restrições Alimentares</span>
-                        <span className="text-stone-700">{selectedGuest.dietaryRestrictions}</span>
-                      </div>
-                    )}
-
                     {selectedGuest.message && (
                       <div className="sm:col-span-2">
                         <span className="font-semibold text-stone-500 block text-[10px] uppercase">Mensagem aos Anfitriões</span>
@@ -751,16 +762,17 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                     </p>
                   </div>
 
-                  {/* Action Buttons: WhatsApp notification & Change Name */}
+                  {/* Action Buttons: Dúvidas (Cerimonial WhatsApp) & Change Name */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={handleNotifyCerimonialWhatsApp}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                    <a
+                      href={getCerimonialWhatsAppUrl()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
                     >
                       <MessageCircle className="w-4 h-4" />
-                      <span>Avisar Cerimonial no WhatsApp</span>
-                    </button>
+                      <span>Dúvidas</span>
+                    </a>
 
                     <button
                       type="button"
@@ -1003,21 +1015,6 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
                           )}
                         </div>
                       )}
-
-                      {/* Dietary restrictions */}
-                      <div>
-                        <label className="block text-xs font-semibold text-stone-700 mb-1 flex items-center gap-1.5">
-                          <Utensils className="w-3.5 h-3.5 text-stone-400" />
-                          <span>Restrições alimentares ou alergias (opcional):</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={dietaryRestrictions}
-                          onChange={(e) => setDietaryRestrictions(e.target.value)}
-                          placeholder="Ex: Vegetariano, Vegano, Celíaco, Intolerância a lactose..."
-                          className="w-full px-3.5 py-2 bg-white border border-stone-200 rounded-xl text-xs focus:outline-none"
-                        />
-                      </div>
                     </div>
                   )}
 
@@ -1068,7 +1065,18 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
         </div>
 
         {/* Footer Cerimonial Badge */}
-        <div className="text-center pt-4 text-xs text-stone-400 space-y-1">
+        <div className="text-center pt-4 text-xs text-stone-400 space-y-2">
+          <div>
+            <a
+              href={getCerimonialWhatsAppUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-full text-xs font-semibold shadow-2xs transition"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Dúvidas</span>
+            </a>
+          </div>
           <div className="flex items-center justify-center gap-1 text-[#882C4E] font-serif font-bold text-sm">
             <Heart className="w-4 h-4 fill-[#882C4E]" />
             <span>Cerimonial Amor Perfeito</span>

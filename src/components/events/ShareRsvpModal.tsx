@@ -77,7 +77,7 @@ _Cerimonial Amor Perfeito_`;
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#882C4E] to-[#B85C7D] text-white shrink-0">
           <div>
-            <h2 className="text-lg font-serif font-bold">Link de RSVP para o Convite</h2>
+            <h2 className="text-lg font-serif font-bold">Link de Confirmação para o Convite</h2>
             <p className="text-xs text-rose-100 font-light">
               Compartilhe com seus convidados para eles confirmarem presença pelo celular
             </p>

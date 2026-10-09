@@ -101,6 +101,9 @@ export const BudgetPreviewModal: React.FC<BudgetPreviewModalProps> = ({
               <div className="font-mono font-bold text-sm text-stone-900 mt-1">{budget.code}</div>
               <div className="text-[11px] text-stone-500 mt-1">Emissão: {formatDate(budget.createdAt)}</div>
               <div className="text-[11px] text-[#882C4E] font-medium">Validade: {formatDate(budget.validUntil)}</div>
+              {budget.creatorName && (
+                <div className="text-[11px] text-stone-600 mt-0.5">Elaborado por: <b>{budget.creatorName}</b></div>
+              )}
             </div>
           </div>
 

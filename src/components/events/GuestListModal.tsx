@@ -3,7 +3,7 @@ import { EventRsvp, Guest, RsvpStatus } from '../../types';
 import { 
   X, Plus, Users, Search, MessageCircle, Trash2, CheckCircle2, 
   XCircle, Clock, FileDown, Upload, Utensils, Heart, Share2, Sparkles, FileText,
-  Edit2, Phone, Save, User, UserCheck
+  Edit2, Phone, Save, User, UserCheck, Download
 } from 'lucide-react';
 import { openGuestRsvpWhatsApp } from '../../utils/whatsapp';
 import { generateGuestListPDF } from '../../utils/pdfGenerator';
@@ -224,7 +224,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
             <div className="flex items-center gap-2">
               <span className="font-serif font-bold text-lg">{event.title}</span>
               <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/20 text-white font-medium border border-white/20">
-                Lista Nominal para RSVP
+                Lista Nominal de Convidados
               </span>
             </div>
             <p className="text-xs text-rose-100 font-light mt-0.5">
@@ -274,10 +274,10 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                 generateGuestListPDF(event, settings);
               }}
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#882C4E] hover:bg-[#732240] text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-2xs"
-              title="Baixar lista em PDF para controle na portaria e recepção do evento"
+              title="Baixar lista em PDF para controle e recepção do evento"
             >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Lista PDF (Portaria)</span>
+              <Download className="w-3.5 h-3.5" />
+              <span>Baixar PDF</span>
             </button>
 
             <button
@@ -426,7 +426,7 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
                   <div>
                     <div className="text-xs">Sim (Pode levar acompanhantes)</div>
                     <div className="text-[10px] text-stone-500 font-normal">
-                      Deverá confirmar nomes no RSVP
+                      Deverá confirmar nomes na confirmação
                     </div>
                   </div>
                 </label>
