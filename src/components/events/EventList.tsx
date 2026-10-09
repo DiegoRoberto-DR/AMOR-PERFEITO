@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { EventRsvp } from '../../types';
 import { formatDate, generateGuestListPDF } from '../../utils/pdfGenerator';
 import { Storage } from '../../utils/storage';
 import { 
   Plus, Users, Share2, Calendar, MapPin, Clock, Edit2, 
-  Trash2, CheckCircle2, XCircle, AlertCircle, Sparkles, ExternalLink, FileText, Download 
+  Trash2, CheckCircle2, XCircle, AlertCircle, AlertTriangle, Sparkles, ExternalLink, FileText, Download, X 
 } from 'lucide-react';
 
 interface EventListProps {
@@ -28,9 +28,18 @@ export const EventList: React.FC<EventListProps> = ({
   onShareEvent,
   onOpenPublicRsvp,
 }) => {
-  const handleDeleteAll = () => {
-    if (confirm('ATENÇÃO: Deseja realmente EXCLUIR TODOS OS EVENTOS e suas listas de convidados? Esta ação não pode ser desfeita.')) {
-      onDeleteAllEvents();
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<EventRsvp | null>(null);
+
+  const confirmDeleteAll = () => {
+    setShowDeleteAllModal(false);
+    onDeleteAllEvents();
+  };
+
+  const confirmDeleteSingle = () => {
+    if (eventToDelete) {
+      onDeleteEvent(eventToDelete.id);
+      setEventToDelete(null);
     }
   };
 
@@ -50,12 +59,12 @@ export const EventList: React.FC<EventListProps> = ({
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
           {events.length > 0 && (
             <button
-              onClick={handleDeleteAll}
+              onClick={() => setShowDeleteAllModal(true)}
               className="inline-flex items-center justify-center gap-1.5 px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-2xl text-xs font-semibold transition cursor-pointer"
               title="Excluir todos os eventos cadastrados"
             >
               <Trash2 className="w-4 h-4" />
-              <span>Excluir Todos ({events.length})</span>
+              <span>Excluir Tudo ({events.length})</span>
             </button>
           )}
 
@@ -171,19 +180,22 @@ export const EventList: React.FC<EventListProps> = ({
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 text-center pt-1 text-xs">
-                      <div className="p-2 bg-emerald-50 rounded-xl text-emerald-800">
-                        <div className="font-extrabold text-sm">{totalPeopleConfirmed}</div>
-                        <div className="text-[10px] text-emerald-600 font-medium">Confirmados</div>
+                      <div className="p-2.5 bg-emerald-50/90 border border-emerald-200/80 rounded-xl text-emerald-800 flex flex-col justify-center">
+                        <div className="font-extrabold text-base text-emerald-700">{totalPeopleConfirmed}</div>
+                        <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider mt-0.5">Confirmados</div>
+                        {totalPeopleConfirmed !== confirmedGuests.length && confirmedGuests.length > 0 && (
+                          <div className="text-[9px] text-emerald-600 font-medium mt-0.5">({confirmedGuests.length} convite{confirmedGuests.length > 1 ? 's' : ''})</div>
+                        )}
                       </div>
 
-                      <div className="p-2 bg-amber-50 rounded-xl text-amber-800">
-                        <div className="font-extrabold text-sm">{pendingCount}</div>
-                        <div className="text-[10px] text-amber-600 font-medium">Pendentes</div>
+                      <div className="p-2.5 bg-amber-50/90 border border-amber-200/80 rounded-xl text-amber-800 flex flex-col justify-center">
+                        <div className="font-extrabold text-base text-amber-700">{pendingCount}</div>
+                        <div className="text-[10px] text-amber-600 font-bold uppercase tracking-wider mt-0.5">Pendentes</div>
                       </div>
 
-                      <div className="p-2 bg-rose-50 rounded-xl text-rose-800">
-                        <div className="font-extrabold text-sm">{declinedCount}</div>
-                        <div className="text-[10px] text-rose-600 font-medium">Recusados</div>
+                      <div className="p-2.5 bg-rose-50/90 border border-rose-200/80 rounded-xl text-rose-800 flex flex-col justify-center">
+                        <div className="font-extrabold text-base text-rose-700">{declinedCount}</div>
+                        <div className="text-[10px] text-rose-600 font-bold uppercase tracking-wider mt-0.5">Recusado{declinedCount === 1 ? '' : 's'}</div>
                       </div>
                     </div>
                   </div>
@@ -202,7 +214,7 @@ export const EventList: React.FC<EventListProps> = ({
 
                     <button
                       onClick={() => onShareEvent(event)}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-[#882C4E] border border-rose-200 rounded-xl text-xs font-semibold transition cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-[#882C4E] border border-rose-200 rounded-xl text-xs font-semibold transition cursor-pointer"
                     >
                       <Share2 className="w-3.5 h-3.5" />
                       <span>Gerar Link do Convite</span>
@@ -213,7 +225,7 @@ export const EventList: React.FC<EventListProps> = ({
                         const settings = Storage.getSettings();
                         generateGuestListPDF(event, settings);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-rose-50 text-[#882C4E] rounded-xl text-xs font-semibold transition cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-stone-100 hover:bg-rose-50 text-[#882C4E] rounded-xl text-xs font-semibold transition cursor-pointer"
                       title="Baixar lista em PDF para controle e recepção do evento"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -231,7 +243,7 @@ export const EventList: React.FC<EventListProps> = ({
                       <span>Editar</span>
                     </button>
                     <button
-                      onClick={() => onDeleteEvent(event.id)}
+                      onClick={() => setEventToDelete(event)}
                       className="p-2 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                       title="Excluir evento"
                     >
@@ -242,6 +254,82 @@ export const EventList: React.FC<EventListProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Confirmation Modal for Delete All Events */}
+      {showDeleteAllModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-stone-200 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-serif font-bold text-stone-900">
+                Tem certeza que deseja excluir tudo?
+              </h3>
+              <p className="text-xs sm:text-sm text-stone-500 mt-2 leading-relaxed">
+                Você está prestes a excluir <b>todos os {events.length} evento(s)</b> cadastrados e todas as listas de convidados e confirmações. Esta ação é definitiva e não poderá ser desfeita.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteAllModal(false)}
+                className="w-full py-3 px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer"
+              >
+                Não, Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDeleteAll}
+                className="w-full py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+              >
+                Sim, Excluir Tudo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Single Event Delete */}
+      {eventToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-stone-200 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+              <Trash2 className="w-7 h-7" />
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-serif font-bold text-stone-900">
+                Excluir este evento?
+              </h3>
+              <p className="text-xs sm:text-sm text-stone-500 mt-2 leading-relaxed">
+                Tem certeza que deseja excluir o evento <b>"{eventToDelete.title}"</b> e toda a sua lista de convidados?
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-3">
+              <button
+                type="button"
+                onClick={() => setEventToDelete(null)}
+                className="w-full py-3 px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer"
+              >
+                Não, Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDeleteSingle}
+                className="w-full py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+              >
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

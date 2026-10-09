@@ -77,6 +77,16 @@ function saveDB(data: DBData) {
 }
 
 // API Routes
+app.get('/api/db', (req, res) => {
+  const db = loadDB();
+  res.json({
+    events: db.events || [],
+    budgets: db.budgets || [],
+    settings: db.settings || DEFAULT_SETTINGS,
+    packages: db.packages || DEFAULT_SERVICE_PACKAGES,
+  });
+});
+
 app.get('/api/settings', (req, res) => {
   const db = loadDB();
   res.json(db.settings);
@@ -212,31 +222,51 @@ app.delete('/api/events/:id', (req, res) => {
 app.post('/api/events/:slug/rsvp', (req, res) => {
   const db = loadDB();
   const slug = req.params.slug;
-  const { guestId, status, confirmedCount, companionNames, dietaryRestrictions, message, phone } = req.body;
+  const { guestId, guestName, status, confirmedCount, companionNames, dietaryRestrictions, message, phone } = req.body;
 
-  const eventIndex = db.events.findIndex((e: any) => 
+  const normalize = (str: string) => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const normSlug = normalize(slug);
+
+  let eventIndex = db.events.findIndex((e: any) => 
     e.slug === slug || 
     e.id === slug ||
-    (e.slug && e.slug.toLowerCase() === slug.toLowerCase())
+    normalize(e.slug) === normSlug ||
+    normalize(e.title) === normSlug
   );
+
+  if (eventIndex === -1 && db.events.length === 1) {
+    eventIndex = 0;
+  }
+
   if (eventIndex === -1) {
     return res.status(404).json({ error: 'Evento não encontrado' });
   }
 
-  const guestIndex = db.events[eventIndex].guests.findIndex((g: any) => g.id === guestId);
+  const targetGuestName = normalize(guestName);
+  let guestIndex = db.events[eventIndex].guests.findIndex((g: any) => 
+    g.id === guestId || 
+    (targetGuestName && normalize(g.name) === targetGuestName)
+  );
+
+  if (guestIndex === -1 && db.events[eventIndex].guests.length === 1) {
+    guestIndex = 0;
+  }
+
   if (guestIndex === -1) {
     return res.status(404).json({ error: 'Convidado não encontrado' });
   }
+
+  const finalCount = status === 'confirmed' ? (Number(confirmedCount) > 0 ? Number(confirmedCount) : 1) : 0;
 
   db.events[eventIndex].guests[guestIndex] = {
     ...db.events[eventIndex].guests[guestIndex],
     status,
     phone: phone ? String(phone).trim() : db.events[eventIndex].guests[guestIndex].phone,
-    confirmedCount: Number(confirmedCount) || (status === 'confirmed' ? 1 : 0),
+    confirmedCount: finalCount,
     companionNames: companionNames || [],
     dietaryRestrictions: dietaryRestrictions || '',
     message: message || '',
-    confirmedAt: new Date().toLocaleString('pt-BR'),
+    confirmedAt: status === 'confirmed' ? new Date().toLocaleString('pt-BR') : undefined,
   };
   db.events[eventIndex].updatedAt = new Date().toISOString().split('T')[0];
 

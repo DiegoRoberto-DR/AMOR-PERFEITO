@@ -141,7 +141,8 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
   const handleManualStatusToggle = (guestId: string, newStatus: RsvpStatus) => {
     const updated = guests.map(g => {
       if (g.id !== guestId) return g;
-      const confirmedCount = newStatus === 'confirmed' ? (g.maxCompanions + 1) : 0;
+      const allowed = Number(g.maxCompanions) || 0;
+      const confirmedCount = newStatus === 'confirmed' ? (allowed + 1) : 0;
       const companionNames = newStatus === 'confirmed' 
         ? (g.companionNames && g.companionNames.length > 0 ? g.companionNames : [g.name]) 
         : [];
@@ -166,20 +167,21 @@ export const GuestListModal: React.FC<GuestListModalProps> = ({
   };
 
   const filteredGuests = guests.filter(g => {
-    const matchesSearch = 
+    const matchesSearch =
       g.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (g.phone && g.phone.includes(searchTerm)) ||
       (g.companionNames && g.companionNames.some(cn => cn.toLowerCase().includes(searchTerm.toLowerCase())));
 
-    const matchesStatus = statusFilter === 'all' || g.status === statusFilter;
+    const currentStatus = g.status || 'pending';
+    const matchesStatus = statusFilter === 'all' || currentStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const confirmedCount = guests.filter(g => g.status === 'confirmed').length;
   const totalPaxConfirmed = guests
     .filter(g => g.status === 'confirmed')
-    .reduce((sum, g) => sum + (g.confirmedCount || 1), 0);
-  const pendingCount = guests.filter(g => g.status === 'pending').length;
+    .reduce((sum, g) => sum + (Number(g.confirmedCount) > 0 ? Number(g.confirmedCount) : 1), 0);
+  const pendingCount = guests.filter(g => g.status === 'pending' || !g.status).length;
   const declinedCount = guests.filter(g => g.status === 'declined').length;
 
   const exportCSV = () => {

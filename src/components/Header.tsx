@@ -1,7 +1,7 @@
 import React from 'react';
 import { Heart, FileText, CalendarCheck, Settings, LogOut, LayoutDashboard, UserCheck, CheckCircle2 } from 'lucide-react';
 
-export type ActiveTab = 'dashboard' | 'budgets' | 'events' | 'confirmations' | 'settings';
+export type ActiveTab = 'dashboard' | 'budgets' | 'events' | 'settings';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -76,18 +76,6 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab('confirmations')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'confirmations'
-                  ? 'bg-white text-[#882C4E] shadow-sm'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
-              }`}
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Confirmação de Presença</span>
-            </button>
-
-            <button
               onClick={() => setActiveTab('settings')}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                 activeTab === 'settings'
@@ -147,15 +135,6 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <CalendarCheck className="w-3.5 h-3.5" />
             <span>Eventos</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('confirmations')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold whitespace-nowrap ${
-              activeTab === 'confirmations' ? 'bg-[#882C4E] text-white shadow-xs' : 'text-stone-600 bg-stone-50'
-            }`}
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Presença</span>
           </button>
           <button
             onClick={() => setActiveTab('settings')}

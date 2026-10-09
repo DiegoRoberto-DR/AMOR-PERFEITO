@@ -1,6 +1,6 @@
 {
   "name": "Amor Perfeito - Cerimonial & Eventos",
-  "description": "Sistema completo do Cerimonial Amor Perfeito: orçamentos profissionais com PDF e WhatsApp, e confirmação de presença (RSVP) personalizada com lista de convidados.",
+  "description": "Sistema completo do Cerimonial Amor Perfeito: orçamentos profissionais com PDF e WhatsApp, e confirmação de presença personalizada com lista de convidados.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

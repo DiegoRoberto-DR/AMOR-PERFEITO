@@ -322,13 +322,14 @@ export const PublicRsvpView: React.FC<PublicRsvpViewProps> = ({
     setIsSubmitting(true);
 
     const updatedGuestData: Partial<Guest> = {
+      name: selectedGuest.name,
       status,
       phone: guestPhone.trim(),
       confirmedCount: finalCount,
       companionNames: finalNames,
       dietaryRestrictions: '',
       message: message.trim(),
-      confirmedAt: new Date().toLocaleString('pt-BR'),
+      confirmedAt: isYes ? new Date().toLocaleString('pt-BR') : undefined,
     };
 
     // Update locally and remotely

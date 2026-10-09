@@ -17,7 +17,7 @@ interface DashboardProps {
   onSendBudgetWhatsapp: (budget: Budget) => void;
   onOpenEventGuests?: (event: EventRsvp) => void;
   onShareEvent?: (event: EventRsvp) => void;
-  onNavigateTab: (tab: 'budgets' | 'events' | 'confirmations') => void;
+  onNavigateTab: (tab: 'budgets' | 'events') => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({

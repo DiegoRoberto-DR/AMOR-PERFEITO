@@ -369,16 +369,39 @@ export const Storage = {
     update: Partial<Guest>
   ): Promise<boolean> {
     const events = this.getEvents();
-    const eventIndex = events.findIndex(e => e.id === eventId || e.slug === eventId);
+    const normalizedTarget = normalizeText(eventId);
+    let eventIndex = events.findIndex(e => 
+      e.id === eventId || 
+      e.slug === eventId || 
+      normalizeText(e.slug) === normalizedTarget ||
+      normalizeText(e.title) === normalizedTarget
+    );
+
+    if (eventIndex === -1 && events.length === 1) {
+      eventIndex = 0;
+    }
+
     if (eventIndex === -1) return false;
 
-    const guestIndex = events[eventIndex].guests.findIndex(g => g.id === guestId);
+    const targetGuestName = update.name ? normalizeText(update.name) : '';
+    let guestIndex = events[eventIndex].guests.findIndex(g => 
+      g.id === guestId || 
+      (targetGuestName && normalizeText(g.name) === targetGuestName)
+    );
+
+    if (guestIndex === -1 && events[eventIndex].guests.length === 1) {
+      guestIndex = 0;
+    }
+
     if (guestIndex === -1) return false;
 
-    const confirmedAt = new Date().toLocaleString('pt-BR');
+    const confirmedAt = update.status === 'confirmed' ? new Date().toLocaleString('pt-BR') : undefined;
+    const finalCount = update.status === 'confirmed' ? (Number(update.confirmedCount) > 0 ? Number(update.confirmedCount) : 1) : 0;
+
     events[eventIndex].guests[guestIndex] = {
       ...events[eventIndex].guests[guestIndex],
       ...update,
+      confirmedCount: finalCount,
       confirmedAt,
     };
     events[eventIndex].updatedAt = new Date().toISOString().split('T')[0];
@@ -386,13 +409,18 @@ export const Storage = {
     // 1. Save locally
     this.saveEvents(events);
 
-    // 2. Dispatch custom event so all components on the page react instantly
+    // 2. Dispatch custom events so all components on this and other tabs react instantly
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('amor_perfeito_data_updated', {
           detail: { eventId, guestId, update },
         })
       );
+      try {
+        const bc = new BroadcastChannel('amor_perfeito_channel');
+        bc.postMessage({ type: 'RSVP_UPDATED', eventId, guestId });
+        bc.close();
+      } catch {}
     }
 
     // 3. Sync with backend API
@@ -402,13 +430,21 @@ export const Storage = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           guestId,
+          guestName: events[eventIndex].guests[guestIndex].name,
           status: update.status,
           phone: update.phone,
-          confirmedCount: update.confirmedCount,
+          confirmedCount: finalCount,
           companionNames: update.companionNames,
           dietaryRestrictions: update.dietaryRestrictions,
           message: update.message,
         }),
+      });
+
+      // Also persist full updated event to server to ensure 100% sync
+      await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(events[eventIndex]),
       });
     } catch (err) {
       console.warn('API sync deferred to localStorage:', err);

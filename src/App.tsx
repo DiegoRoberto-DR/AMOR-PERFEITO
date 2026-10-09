@@ -15,7 +15,6 @@ import { GuestListModal } from './components/events/GuestListModal';
 import { ShareRsvpModal } from './components/events/ShareRsvpModal';
 import { PublicRsvpView } from './components/rsvp/PublicRsvpView';
 import { SettingsView } from './components/settings/SettingsView';
-import { PresenceConfirmationsView } from './components/confirmations/PresenceConfirmationsView';
 
 export default function App() {
   // Navigation & Auth state
@@ -70,6 +69,8 @@ export default function App() {
 
       if (rsvpParam || portableData) {
         setCurrentRsvpSlug(rsvpParam || 'evento');
+      } else {
+        setCurrentRsvpSlug(null);
       }
     };
 
@@ -91,11 +92,40 @@ export default function App() {
     };
 
     window.addEventListener('amor_perfeito_data_updated', handleDataUpdated);
+    window.addEventListener('storage', handleDataUpdated);
+
+    // Cross-tab broadcast channel
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('amor_perfeito_channel');
+      bc.onmessage = () => {
+        handleDataUpdated();
+      };
+    } catch {}
+
+    // Active polling sync with server every 3s so admin is always up-to-date
+    const pollInterval = setInterval(() => {
+      Storage.syncWithServer().then(({ events: syncedEvents }) => {
+        if (syncedEvents && syncedEvents.length > 0) setEvents(syncedEvents);
+      });
+    }, 3000);
+
+    const handleFocus = () => {
+      handleDataUpdated();
+      Storage.syncWithServer().then(({ events: syncedEvents }) => {
+        if (syncedEvents && syncedEvents.length > 0) setEvents(syncedEvents);
+      });
+    };
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       window.removeEventListener('popstate', parseUrlParams);
       window.removeEventListener('hashchange', parseUrlParams);
       window.removeEventListener('amor_perfeito_data_updated', handleDataUpdated);
+      window.removeEventListener('storage', handleDataUpdated);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(pollInterval);
+      if (bc) bc.close();
     };
   }, []);
 
@@ -340,13 +370,6 @@ export default function App() {
             onOpenPublicRsvp={(slug) => {
               setCurrentRsvpSlug(slug);
             }}
-          />
-        )}
-
-        {activeTab === 'confirmations' && (
-          <PresenceConfirmationsView
-            events={events}
-            onUpdateEventGuests={handleUpdateEventGuests}
           />
         )}
 
